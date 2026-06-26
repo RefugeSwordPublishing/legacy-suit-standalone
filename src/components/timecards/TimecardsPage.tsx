@@ -216,7 +216,11 @@ export default function TimecardsPage() {
         {isHighRole && userProfiles.length > 0 && (
           <Select value={selectedUserId || '__me__'} onValueChange={v => setSelectedUserId(v === '__me__' ? '' : v)}>
             <SelectTrigger className="w-44 h-8 text-sm">
-              <SelectValue />
+              <SelectValue>
+                {selectedUserId
+                  ? (() => { const u = (userProfiles as any[]).find(u => u.user_id === selectedUserId); return u ? [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email : 'My Timecards' })()
+                  : 'My Timecards'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__me__">My Timecards</SelectItem>

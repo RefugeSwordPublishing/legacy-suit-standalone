@@ -101,11 +101,9 @@ export default function ProjectDetailPage({ projectId }: { projectId: string }) 
             )}
           </div>
         </div>
-        {isHighRole(currentUser?.role) && (
-          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} className="shrink-0 h-8">
-            <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
-          </Button>
-        )}
+        <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} className="shrink-0 h-8">
+          <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+        </Button>
       </div>
 
       {/* Tabs */}

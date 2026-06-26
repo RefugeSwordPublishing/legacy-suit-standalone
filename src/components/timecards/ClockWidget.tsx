@@ -210,7 +210,11 @@ export default function ClockWidget({ projects }: Props) {
         <div className="space-y-2">
           <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
             <SelectTrigger className="text-sm">
-              <SelectValue placeholder="Select project..." />
+              <SelectValue placeholder="Select project...">
+                {selectedProjectId
+                  ? availableProjects.find(p => p.id === selectedProjectId)?.name ?? 'Select project...'
+                  : 'Select project...'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {availableProjects.map(p => (
