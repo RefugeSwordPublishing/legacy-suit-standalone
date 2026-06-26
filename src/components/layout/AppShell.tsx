@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser, isHighRole } from '@/lib/hooks/useCurrentUser'
-import { LayoutDashboard, Users, LogOut, Menu, X, Building2, Tag } from 'lucide-react'
+import { LayoutDashboard, Users, LogOut, Menu, X, Building2, Tag, FolderKanban } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard, roles: 'all' },
+  { href: '/dashboard/projects',   label: 'Projects',   icon: FolderKanban,    roles: 'all' },
   { href: '/dashboard/clients',    label: 'Clients',    icon: Building2,       roles: 'all' },
   { href: '/dashboard/cost-codes', label: 'Cost Codes', icon: Tag,             roles: 'high' },
   { href: '/dashboard/users',      label: 'Users',      icon: Users,           roles: 'high' },
