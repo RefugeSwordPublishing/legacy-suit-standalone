@@ -71,11 +71,9 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold text-[#3d3d1e]">Projects</h1>
           <p className="text-sm text-[#7A7560] mt-0.5">{projects.filter(p => p.status === 'active').length} active</p>
         </div>
-        {isHighRole(currentUser?.role) && (
-          <Button onClick={() => setShowForm(true)} className="bg-[#3d3d1e] hover:bg-[#5a5a2a] text-[#EAE8E1]" size="sm">
-            <Plus className="w-4 h-4 mr-1" /> New Project
-          </Button>
-        )}
+        <Button onClick={() => setShowForm(true)} className="bg-[#3d3d1e] hover:bg-[#5a5a2a] text-[#EAE8E1]" size="sm">
+          <Plus className="w-4 h-4 mr-1" /> New Project
+        </Button>
       </div>
 
       {/* Filters */}

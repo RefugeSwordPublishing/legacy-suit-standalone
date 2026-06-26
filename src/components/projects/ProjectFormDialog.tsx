@@ -68,7 +68,7 @@ export default function ProjectFormDialog({ open, onOpenChange, project, onSaved
       name: form.name.trim(),
       address: form.address?.trim() || null,
       client_id: form.client_id || null,
-      client_name: selectedClient?.name ?? form.client_name?.trim() || null,
+      client_name: (selectedClient?.name ?? form.client_name?.trim()) || null,
       status: form.status,
       phase: form.phase || null,
       budget: form.budget ? parseFloat(form.budget) : null,
@@ -102,8 +102,18 @@ export default function ProjectFormDialog({ open, onOpenChange, project, onSaved
 
           <div className="space-y-1.5">
             <Label>Client</Label>
-            <Select value={form.client_id || '__none__'} onValueChange={v => setForm(f => ({ ...f, client_id: v === '__none__' ? '' : v }))}>
-              <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+            <Select
+              value={form.client_id || '__none__'}
+              onValueChange={v => {
+                const selected = clients.find((c: any) => c.id === v)
+                setForm(f => ({ ...f, client_id: v === '__none__' ? '' : v, client_name: selected?.name ?? '' }))
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select client">
+                  {form.client_id ? clients.find((c: any) => c.id === form.client_id)?.name ?? 'Select client' : 'No client'}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">No client</SelectItem>
                 {clients.map((c: any) => (
@@ -133,7 +143,11 @@ export default function ProjectFormDialog({ open, onOpenChange, project, onSaved
             <div className="space-y-1.5">
               <Label>Phase</Label>
               <Select value={form.phase || '__none__'} onValueChange={v => setForm(f => ({ ...f, phase: v === '__none__' ? '' : v }))}>
-                <SelectTrigger><SelectValue placeholder="No phase" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="No phase">
+                    {form.phase ? PHASE_LABELS[form.phase] : 'No phase'}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">No phase</SelectItem>
                   {PHASES.map(p => (
