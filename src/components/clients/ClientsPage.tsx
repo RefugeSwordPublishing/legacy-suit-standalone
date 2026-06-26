@@ -106,11 +106,9 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold text-[#3d3d1e]">Clients</h1>
           <p className="text-sm text-[#7A7560] mt-0.5">{clients.length} total</p>
         </div>
-        {canManage && (
-          <Button onClick={openNew} className="bg-[#3d3d1e] hover:bg-[#5a5a2a] text-[#EAE8E1]" size="sm">
-            <Plus className="w-4 h-4 mr-1" /> Add Client
-          </Button>
-        )}
+        <Button onClick={openNew} className="bg-[#3d3d1e] hover:bg-[#5a5a2a] text-[#EAE8E1]" size="sm">
+          <Plus className="w-4 h-4 mr-1" /> Add Client
+        </Button>
       </div>
 
       <Input
@@ -127,7 +125,21 @@ export default function ClientsPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-[#7A7560]">
           <Building2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">{search ? 'No clients match your search.' : 'No clients yet.'}</p>
+          <p className="font-medium mb-3">
+            {search ? `No clients found for "${search}"` : 'No clients yet.'}
+          </p>
+          <Button
+            onClick={() => {
+              setForm({ name: search || '', email: '', phone: '' })
+              setEditing(null)
+              setOpen(true)
+            }}
+            className="bg-[#3d3d1e] hover:bg-[#5a5a2a] text-[#EAE8E1]"
+            size="sm"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            {search ? `Add "${search}" as a client` : 'Add Client'}
+          </Button>
         </div>
       ) : (
         <div className="space-y-2">
