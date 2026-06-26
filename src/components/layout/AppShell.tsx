@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrentUser, isHighRole } from '@/lib/hooks/useCurrentUser'
-import { LayoutDashboard, Users, LogOut, Menu, X, Building2, Tag, FolderKanban, Clock, Receipt, CalendarOff, HardHat } from 'lucide-react'
+import { LayoutDashboard, Users, LogOut, Menu, X, Building2, Tag, FolderKanban, Clock, Receipt, CalendarOff, HardHat, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,7 @@ const NAV = [
   { href: '/dashboard/timecards',  label: 'Timecards',  icon: Clock,           roles: 'all' },
   { href: '/dashboard/expenses',   label: 'Expenses',   icon: Receipt,         roles: 'all' },
   { href: '/dashboard/time-off',        label: 'Time Off',       icon: CalendarOff, roles: 'all' },
+  { href: '/dashboard/estimates',        label: 'Estimates',       icon: FileText,   roles: 'all' },
   { href: '/dashboard/subcontractors',  label: 'Sub Contractors', icon: HardHat,    roles: 'all' },
   { href: '/dashboard/cost-codes',      label: 'Cost Codes',      icon: Tag,        roles: 'high' },
   { href: '/dashboard/users',      label: 'Users',      icon: Users,           roles: 'high' },
