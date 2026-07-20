@@ -181,7 +181,7 @@ export default function ChangeOrderBuilder({ id }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>Linked Estimate</Label>
-              <Select value={form.estimate_id || '__none__'} onValueChange={v => v === '__none__' ? set('estimate_id', '') : handleEstimateSelect(v)}>
+              <Select value={form.estimate_id || '__none__'} onValueChange={(v: string | null) => { if (!v || v === '__none__') { set('estimate_id', '') } else { handleEstimateSelect(v) } }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select estimate">
                     {form.estimate_id

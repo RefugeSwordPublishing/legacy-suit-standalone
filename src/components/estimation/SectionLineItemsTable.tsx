@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Trash2, Plus, BookOpen, Search } from 'lucide-react'
+import { Trash2, Plus, BookOpen, Search, SlidersHorizontal } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 const CATEGORIES = ['materials', 'labor', 'subcontractor', 'other']
@@ -24,14 +24,25 @@ function fmt(n: number) {
 }
 
 function calcLineTotal(item: any) {
-  const base = (item.quantity || 0) * (item.unit_cost || 0)
+  const unitCost = item.unit_cost || 0
+  const laborCost = item.labor_cost || 0
+  const qty = item.quantity || 0
+  const base = qty * (unitCost + laborCost)
   return base + base * ((item.markup_pct || 0) / 100)
+}
+
+export interface ColumnSettings {
+  show_qty: boolean
+  show_unit: boolean
+  show_line_total: boolean
 }
 
 interface Props {
   items: any[]
   onChange: (items: any[]) => void
   categoryMarkups: Record<string, number>
+  columnSettings?: ColumnSettings
+  onColumnSettingsChange?: (s: ColumnSettings) => void
 }
 
 function CatalogPicker({ onSelect, onClose }: { onSelect: (item: any) => void; onClose: () => void }) {
@@ -89,8 +100,18 @@ function CatalogPicker({ onSelect, onClose }: { onSelect: (item: any) => void; o
   )
 }
 
-export default function SectionLineItemsTable({ items, onChange, categoryMarkups }: Props) {
+const DEFAULT_COL_SETTINGS: ColumnSettings = { show_qty: true, show_unit: true, show_line_total: true }
+
+export default function SectionLineItemsTable({ items, onChange, categoryMarkups, columnSettings, onColumnSettingsChange }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [colMenuOpen, setColMenuOpen] = useState(false)
+
+  const cols = columnSettings ?? DEFAULT_COL_SETTINGS
+
+  const toggleCol = (key: keyof ColumnSettings) => {
+    if (!onColumnSettingsChange) return
+    onColumnSettingsChange({ ...cols, [key]: !cols[key] })
+  }
 
   const updateItem = (id: string, field: string, value: any) => {
     onChange(items.map(item => {
@@ -120,6 +141,7 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
       quantity: 1,
       unit: '',
       unit_cost: 0,
+      labor_cost: 0,
       markup_pct: defaultMarkup,
       line_total: 0,
     }])
@@ -129,6 +151,7 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
     const defaultMarkup = categoryMarkups?.[catalogItem.category] ?? catalogItem.default_markup ?? 0
     const qty = catalogItem.default_quantity || 1
     const unitCost = catalogItem.unit_cost || 0
+    const laborCost = catalogItem.labor_cost || 0
     onChange([...items, {
       id: uuidv4(),
       catalog_item_id: catalogItem.id,
@@ -137,8 +160,9 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
       quantity: qty,
       unit: catalogItem.unit || '',
       unit_cost: unitCost,
+      labor_cost: laborCost,
       markup_pct: defaultMarkup,
-      line_total: calcLineTotal({ quantity: qty, unit_cost: unitCost, markup_pct: defaultMarkup }),
+      line_total: calcLineTotal({ quantity: qty, unit_cost: unitCost, labor_cost: laborCost, markup_pct: defaultMarkup }),
     }])
   }
 
@@ -147,6 +171,28 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
   return (
     <div>
       <div className="flex justify-end gap-2 mb-2">
+        {onColumnSettingsChange && (
+          <div className="relative">
+            <Button size="sm" variant="outline" onClick={() => setColMenuOpen(o => !o)} className="gap-1.5 text-xs">
+              <SlidersHorizontal className="w-3.5 h-3.5" /> Columns
+            </Button>
+            {colMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-[#D4CFBA] rounded-lg shadow-lg p-3 space-y-2 z-20 w-40">
+                {([['show_qty', 'Qty'], ['show_unit', 'Unit'], ['show_line_total', 'Line Total']] as [keyof ColumnSettings, string][]).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer text-xs text-[#3d3d1e]">
+                    <input
+                      type="checkbox"
+                      checked={cols[key]}
+                      onChange={() => toggleCol(key)}
+                      className="rounded"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)} className="gap-1.5 text-xs">
           <BookOpen className="w-3.5 h-3.5" /> From Catalog
         </Button>
@@ -166,11 +212,12 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                 <tr className="bg-muted/40 text-xs text-[#7A7560]">
                   <th className="text-left px-2 py-1.5 font-medium">Description</th>
                   <th className="text-left px-2 py-1.5 font-medium w-32">Category</th>
-                  <th className="text-right px-2 py-1.5 font-medium w-16">Qty</th>
-                  <th className="text-left px-2 py-1.5 font-medium w-12">Unit</th>
+                  {cols.show_qty && <th className="text-right px-2 py-1.5 font-medium w-16">Qty</th>}
+                  {cols.show_unit && <th className="text-left px-2 py-1.5 font-medium w-12">Unit</th>}
                   <th className="text-right px-2 py-1.5 font-medium w-24">Unit Cost</th>
+                  <th className="text-right px-2 py-1.5 font-medium w-24">Labor $/Unit</th>
                   <th className="text-right px-2 py-1.5 font-medium w-20">Markup%</th>
-                  <th className="text-right px-2 py-1.5 font-medium w-24">Total</th>
+                  {cols.show_line_total && <th className="text-right px-2 py-1.5 font-medium w-24">Total</th>}
                   <th className="w-7"></th>
                 </tr>
               </thead>
@@ -193,27 +240,39 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-2 py-1.5">
-                      <Input
-                        type="number" min="0" step="0.01"
-                        value={item.quantity || ''}
-                        onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        className="h-7 text-xs text-right border-0 shadow-none px-0 focus-visible:ring-0"
-                      />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <Input
-                        value={item.unit || ''}
-                        onChange={e => updateItem(item.id, 'unit', e.target.value)}
-                        placeholder="ea"
-                        className="h-7 text-xs border-0 shadow-none px-0 focus-visible:ring-0"
-                      />
-                    </td>
+                    {cols.show_qty && (
+                      <td className="px-2 py-1.5">
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={item.quantity || ''}
+                          onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          className="h-7 text-xs text-right border-0 shadow-none px-0 focus-visible:ring-0"
+                        />
+                      </td>
+                    )}
+                    {cols.show_unit && (
+                      <td className="px-2 py-1.5">
+                        <Input
+                          value={item.unit || ''}
+                          onChange={e => updateItem(item.id, 'unit', e.target.value)}
+                          placeholder="ea"
+                          className="h-7 text-xs border-0 shadow-none px-0 focus-visible:ring-0"
+                        />
+                      </td>
+                    )}
                     <td className="px-2 py-1.5">
                       <Input
                         type="number" min="0" step="0.01"
                         value={item.unit_cost || ''}
                         onChange={e => updateItem(item.id, 'unit_cost', parseFloat(e.target.value) || 0)}
+                        className="h-7 text-xs text-right border-0 shadow-none px-0 focus-visible:ring-0"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        type="number" min="0" step="0.01"
+                        value={item.labor_cost || ''}
+                        onChange={e => updateItem(item.id, 'labor_cost', parseFloat(e.target.value) || 0)}
                         className="h-7 text-xs text-right border-0 shadow-none px-0 focus-visible:ring-0"
                       />
                     </td>
@@ -225,7 +284,9 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                         className="h-7 text-xs text-right border-0 shadow-none px-0 focus-visible:ring-0"
                       />
                     </td>
-                    <td className="px-2 py-1.5 text-right font-medium text-xs">${fmt(item.line_total || 0)}</td>
+                    {cols.show_line_total && (
+                      <td className="px-2 py-1.5 text-right font-medium text-xs">${fmt(item.line_total || 0)}</td>
+                    )}
                     <td className="px-1 py-1.5">
                       <button onClick={() => removeItem(item.id)} className="text-[#7A7560] hover:text-red-600 transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
@@ -254,21 +315,24 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                       {CATEGORIES.map(c => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number" min="0" step="0.01"
-                    value={item.quantity || ''}
-                    onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                    placeholder="Qty"
-                    className="h-8 text-xs"
-                  />
+                  {cols.show_qty && (
+                    <Input
+                      type="number" min="0" step="0.01"
+                      value={item.quantity || ''}
+                      onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                      placeholder="Qty"
+                      className="h-8 text-xs"
+                    />
+                  )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Input type="number" min="0" step="0.01" value={item.unit_cost || ''} onChange={e => updateItem(item.id, 'unit_cost', parseFloat(e.target.value) || 0)} placeholder="Unit $" className="h-8 text-xs" />
-                  <Input type="number" min="0" step="0.1" value={item.markup_pct || ''} onChange={e => updateItem(item.id, 'markup_pct', parseFloat(e.target.value) || 0)} placeholder="Markup%" className="h-8 text-xs" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold">${fmt(item.line_total || 0)}</span>
-                    <button onClick={() => removeItem(item.id)} className="text-[#7A7560] hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
+                  <Input type="number" min="0" step="0.01" value={item.labor_cost || ''} onChange={e => updateItem(item.id, 'labor_cost', parseFloat(e.target.value) || 0)} placeholder="Labor $/unit" className="h-8 text-xs" />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Input type="number" min="0" step="0.1" value={item.markup_pct || ''} onChange={e => updateItem(item.id, 'markup_pct', parseFloat(e.target.value) || 0)} placeholder="Markup%" className="h-8 text-xs flex-1" />
+                  {cols.show_line_total && <span className="text-xs font-semibold">${fmt(item.line_total || 0)}</span>}
+                  <button onClick={() => removeItem(item.id)} className="text-[#7A7560] hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
             ))}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
-import SectionLineItemsTable from './SectionLineItemsTable'
+import SectionLineItemsTable, { ColumnSettings } from './SectionLineItemsTable'
 
 const DEFAULT_MARKUPS = { materials: 20, labor: 15, subcontractor: 10, other: 0 }
 
@@ -17,9 +17,11 @@ interface Props {
   sections: any[]
   onChange: (sections: any[]) => void
   categoryMarkups?: Record<string, number>
+  columnSettings?: ColumnSettings
+  onColumnSettingsChange?: (s: ColumnSettings) => void
 }
 
-export default function SectionsEditor({ sections, onChange, categoryMarkups = DEFAULT_MARKUPS }: Props) {
+export default function SectionsEditor({ sections, onChange, categoryMarkups = DEFAULT_MARKUPS, columnSettings, onColumnSettingsChange }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   const toggleCollapse = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -76,6 +78,8 @@ export default function SectionsEditor({ sections, onChange, categoryMarkups = D
                   items={section.line_items || []}
                   onChange={items => updateSectionItems(section.id, items)}
                   categoryMarkups={categoryMarkups}
+                  columnSettings={columnSettings}
+                  onColumnSettingsChange={onColumnSettingsChange}
                 />
               </div>
             )}

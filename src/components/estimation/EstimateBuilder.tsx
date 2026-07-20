@@ -9,11 +9,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { ArrowLeft, Save, Loader2, Send } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Send, CheckCircle, FolderPlus } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import SectionsEditor from './SectionsEditor'
 import EstimateSummaryPanel from './EstimateSummaryPanel'
+import CreateProjectFromEstimateDialog from './CreateProjectFromEstimateDialog'
+import type { ColumnSettings } from './SectionLineItemsTable'
+
+const DEFAULT_COLUMN_SETTINGS: ColumnSettings = { show_qty: true, show_unit: true, show_line_total: true }
 
 const DEFAULT_MARKUPS = { materials: 20, labor: 15, subcontractor: 10, other: 0 }
 
@@ -36,6 +40,7 @@ const BLANK = {
   gc_fee_pct: 13,
   gc_fee_label: 'GC / Project Management Fee',
   category_markups: { ...DEFAULT_MARKUPS },
+  column_settings: { ...DEFAULT_COLUMN_SETTINGS } as ColumnSettings,
   estimate_number: '',
   grand_total: 0,
 }
@@ -49,6 +54,7 @@ export default function EstimateBuilder({ id }: Props) {
   const isNew = id === 'new'
   const [form, setForm] = useState(BLANK)
   const [saving, setSaving] = useState(false)
+  const [createProjectOpen, setCreateProjectOpen] = useState(false)
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['estimate', id],
@@ -98,6 +104,7 @@ export default function EstimateBuilder({ id }: Props) {
         gc_fee_pct: existing.gc_fee_pct ?? 13,
         gc_fee_label: existing.gc_fee_label ?? 'GC / Project Management Fee',
         category_markups: existing.category_markups ?? DEFAULT_MARKUPS,
+        column_settings: existing.column_settings ?? DEFAULT_COLUMN_SETTINGS,
         estimate_number: existing.estimate_number ?? '',
         grand_total: existing.grand_total ?? 0,
       })
@@ -141,6 +148,7 @@ export default function EstimateBuilder({ id }: Props) {
       gc_fee_pct: form.gc_fee_pct,
       gc_fee_label: form.gc_fee_label,
       category_markups: form.category_markups,
+      column_settings: form.column_settings,
       estimate_number: form.estimate_number,
       grand_total,
     }
@@ -198,6 +206,16 @@ export default function EstimateBuilder({ id }: Props) {
               <Send className="w-3.5 h-3.5 mr-1" /> Mark Sent
             </Button>
           )}
+          {!isNew && (form.status === 'sent' || form.status === 'draft') && (
+            <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => handleSave('approved')} disabled={saving}>
+              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
+            </Button>
+          )}
+          {!isNew && form.status === 'approved' && !form.project_id && (
+            <Button size="sm" variant="outline" onClick={() => setCreateProjectOpen(true)}>
+              <FolderPlus className="w-3.5 h-3.5 mr-1" /> Create Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -213,7 +231,7 @@ export default function EstimateBuilder({ id }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Client</Label>
-                <Select value={form.client_id || '__none__'} onValueChange={v => v === '__none__' ? (set('client_id', ''), set('client_name', '')) : handleClientSelect(v)}>
+                <Select value={form.client_id || '__none__'} onValueChange={(v: string | null) => { if (!v || v === '__none__') { set('client_id', ''); set('client_name', '') } else { handleClientSelect(v) } }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select client">
                       {form.client_id ? (clients as any[]).find(c => c.id === form.client_id)?.name ?? 'Select client' : 'No client'}
@@ -227,7 +245,7 @@ export default function EstimateBuilder({ id }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label>Project</Label>
-                <Select value={form.project_id || '__none__'} onValueChange={v => v === '__none__' ? (set('project_id', ''), set('project_name', '')) : handleProjectSelect(v)}>
+                <Select value={form.project_id || '__none__'} onValueChange={(v: string | null) => { if (!v || v === '__none__') { set('project_id', ''); set('project_name', '') } else { handleProjectSelect(v) } }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select project">
                       {form.project_id ? (projects as any[]).find(p => p.id === form.project_id)?.name ?? 'Select project' : 'No project'}
@@ -267,6 +285,8 @@ export default function EstimateBuilder({ id }: Props) {
               sections={form.sections}
               onChange={sections => set('sections', sections)}
               categoryMarkups={form.category_markups}
+              columnSettings={form.column_settings}
+              onColumnSettingsChange={s => set('column_settings', s)}
             />
           </div>
 
@@ -304,6 +324,21 @@ export default function EstimateBuilder({ id }: Props) {
           />
         </div>
       </div>
+
+      {createProjectOpen && (
+        <CreateProjectFromEstimateDialog
+          open={createProjectOpen}
+          onClose={() => setCreateProjectOpen(false)}
+          estimateTitle={form.title || form.estimate_number}
+          clientId={form.client_id}
+          clientName={form.client_name}
+          estimateId={id}
+          onProjectCreated={(projectId, projectName) => {
+            set('project_id', projectId)
+            set('project_name', projectName)
+          }}
+        />
+      )}
     </div>
   )
 }
