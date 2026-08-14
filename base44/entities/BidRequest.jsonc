@@ -1,0 +1,106 @@
+{
+  "name": "BidRequest",
+  "type": "object",
+  "properties": {
+    "request_type": {
+      "type": "string",
+      "enum": [
+        "bid",
+        "estimate"
+      ],
+      "default": "bid"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "project_address": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "budget": {
+      "type": "number"
+    },
+    "scope_of_work": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "photo_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "file_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "file_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sub_contractor_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "eta_window_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "eta_window_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sent",
+        "reviewing",
+        "awarded",
+        "cancelled"
+      ],
+      "default": "draft"
+    },
+    "awarded_to_id": {
+      "type": "string"
+    },
+    "awarded_to_name": {
+      "type": "string"
+    },
+    "created_by_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "title"
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "name": "Invoice",
+  "type": "object",
+  "properties": {
+    "invoice_number": {
+      "type": "string"
+    },
+    "client_id": {
+      "type": "string"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "client_email": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sent",
+        "paid",
+        "void"
+      ],
+      "default": "draft"
+    },
+    "issue_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "payment_terms": {
+      "type": "string",
+      "enum": [
+        "due_on_receipt",
+        "net_10",
+        "net_15",
+        "net_30"
+      ],
+      "default": "net_30"
+    },
+    "billing_mode": {
+      "type": "string",
+      "enum": [
+        "line_items",
+        "schedule_of_values"
+      ],
+      "default": "line_items"
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "estimate",
+              "bid",
+              "manual"
+            ],
+            "default": "manual"
+          },
+          "source_ref_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cost_code": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "materials",
+              "labor",
+              "subcontractor",
+              "other"
+            ],
+            "default": "other"
+          },
+          "quantity": {
+            "type": "number",
+            "default": 1
+          },
+          "unit_cost": {
+            "type": "number",
+            "default": 0
+          },
+          "markup_pct": {
+            "type": "number",
+            "default": 0
+          },
+          "line_total": {
+            "type": "number",
+            "default": 0
+          }
+        }
+      }
+    },
+    "sov_entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "materials",
+              "labor",
+              "subcontractor",
+              "other"
+            ]
+          },
+          "category_total": {
+            "type": "number"
+          },
+          "previous_pct": {
+            "type": "number",
+            "default": 0
+          },
+          "current_pct": {
+            "type": "number",
+            "default": 0
+          },
+          "current_amount": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "co_sov_entries": {
+      "type": "array",
+      "description": "Per-change-order per-category SOV billing entries",
+      "items": {
+        "type": "object",
+        "properties": {
+          "change_order_id": {
+            "type": "string"
+          },
+          "change_order_title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "category_total": {
+            "type": "number",
+            "default": 0
+          },
+          "current_pct": {
+            "type": "number",
+            "default": 0
+          },
+          "prev_billed_pct": {
+            "type": "number",
+            "default": 0
+          },
+          "current_amount": {
+            "type": "number",
+            "default": 0
+          }
+        }
+      }
+    },
+    "imported_bid_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "total_markup": {
+      "type": "number",
+      "default": 0
+    },
+    "grand_total": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    },
+    "quickbooks_invoice_id": {
+      "type": "string"
+    },
+    "quickbooks_invoice_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "client_id",
+    "project_id"
+  ]
+}

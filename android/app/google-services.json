@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "937577693481",
+    "project_id": "guildwright-3ed6a",
+    "storage_bucket": "guildwright-3ed6a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:937577693481:android:9b3046ced1cd5b5ffbf738",
+        "android_client_info": {
+          "package_name": "com.guildwright.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzTMOeRQWUppARB3_LT26kbzzYmkaiPgM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

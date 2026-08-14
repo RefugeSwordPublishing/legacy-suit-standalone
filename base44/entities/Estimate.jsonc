@@ -1,0 +1,207 @@
+{
+  "name": "Estimate",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Estimate title"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sent",
+        "approved",
+        "rejected"
+      ],
+      "default": "draft"
+    },
+    "client_id": {
+      "type": "string"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "client_email": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "estimate_number": {
+      "type": "string"
+    },
+    "scope_of_work": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gc_fee_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "gc_fee_pct": {
+      "type": "number",
+      "default": 10
+    },
+    "gc_fee_label": {
+      "type": "string",
+      "default": "GC / Project Management Fee"
+    },
+    "column_settings": {
+      "type": "object",
+      "properties": {
+        "show_qty": {
+          "type": "boolean",
+          "default": true
+        },
+        "show_unit": {
+          "type": "boolean",
+          "default": true
+        },
+        "show_line_total": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "category_markups": {
+      "type": "object",
+      "properties": {
+        "materials": {
+          "type": "number",
+          "default": 20
+        },
+        "labor": {
+          "type": "number",
+          "default": 15
+        },
+        "subcontractor": {
+          "type": "number",
+          "default": 10
+        },
+        "other": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "catalog_item_id": {
+                  "type": "string"
+                },
+                "cost_code_id": {
+                  "type": "string"
+                },
+                "cost_code": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "item_description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "materials",
+                    "labor",
+                    "subcontractor",
+                    "other"
+                  ],
+                  "default": "materials"
+                },
+                "quantity": {
+                  "type": "number",
+                  "default": 1
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "unit_cost": {
+                  "type": "number",
+                  "default": 0
+                },
+                "labor_cost_per_unit": {
+                  "type": "number",
+                  "default": 0
+                },
+                "markup_pct": {
+                  "type": "number",
+                  "default": 0
+                },
+                "line_total": {
+                  "type": "number",
+                  "default": 0
+                },
+                "labor_auto": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "linked_section_id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "total_markup": {
+      "type": "number",
+      "default": 0
+    },
+    "grand_total": {
+      "type": "number",
+      "default": 0
+    },
+    "signed_by": {
+      "type": "string"
+    },
+    "signed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

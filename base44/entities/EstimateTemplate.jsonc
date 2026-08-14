@@ -1,0 +1,110 @@
+{
+  "name": "EstimateTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "is_rapid_estimate": {
+      "type": "boolean",
+      "default": false
+    },
+    "category_markups": {
+      "type": "object",
+      "properties": {
+        "materials": {
+          "type": "number",
+          "default": 20
+        },
+        "labor": {
+          "type": "number",
+          "default": 15
+        },
+        "subcontractor": {
+          "type": "number",
+          "default": 10
+        },
+        "other": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "catalog_item_id": {
+                  "type": "string"
+                },
+                "cost_code_id": {
+                  "type": "string"
+                },
+                "cost_code": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "materials",
+                    "labor",
+                    "subcontractor",
+                    "other"
+                  ],
+                  "default": "materials"
+                },
+                "quantity": {
+                  "type": "number",
+                  "default": 1
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "unit_cost": {
+                  "type": "number",
+                  "default": 0
+                },
+                "labor_cost_per_unit": {
+                  "type": "number",
+                  "default": 0
+                },
+                "markup_pct": {
+                  "type": "number",
+                  "default": 0
+                },
+                "line_total": {
+                  "type": "number",
+                  "default": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "GuildWright",
+  "short_name": "GuildWright",
+  "description": "Field and office operations for contractors.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#262525",
+  "theme_color": "#262525",
+  "icons": [
+    {
+      "src": "/guildwright-icon.png?v=2",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

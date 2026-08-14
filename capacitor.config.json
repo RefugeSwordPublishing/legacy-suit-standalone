@@ -1,0 +1,16 @@
+{
+  "appId": "com.guildwright.app",
+  "appName": "GuildWright",
+  "webDir": "dist",
+  "backgroundColor": "#262525",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#262525",
+      "showSpinner": false
+    }
+  }
+}

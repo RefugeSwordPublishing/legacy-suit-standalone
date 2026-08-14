@@ -1,0 +1,30 @@
+{
+  "name": "CrewScheduleEntry",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "user_role": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "project_id",
+    "scheduled_date"
+  ]
+}
