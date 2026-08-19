@@ -89,42 +89,11 @@ export default function AddExpenseDialog({ open, onOpenChange, projects, onSaved
     enabled: open,
   });
 
-  const convertPdfToImageUrl = async (pdfFile) => {
-    try {
-      const arrayBuffer = await pdfFile.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-      if (typeof window.pdfjsLib === 'undefined') {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      }
-      const pdf = await window.pdfjsLib.getDocument({ data: uint8 }).promise;
-      const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      return await new Promise(resolve => canvas.toBlob(blob => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-      }, 'image/png'));
-    } catch {
-      return null;
-    }
-  };
-
-  const extractFromFile = async (file, uploadedUrl) => {
-    const isPdf = file.type === 'application/pdf';
-    let fileUrls = [uploadedUrl];
-    let prompt = `You are extracting data from a photo of a purchase receipt. Read it carefully and return ONLY valid JSON with these keys:
+  const extractFromFile = async (uploadedUrl) => {
+    // Images and PDFs both go straight to the LLM; invoke-llm reads a PDF natively as a document,
+    // so there's no fragile client-side (CDN pdf.js) rasterization to fail in the field.
+    const fileUrls = [uploadedUrl];
+    const prompt = `You are extracting data from a purchase receipt (a photo or a PDF). Read it carefully and return ONLY valid JSON with these keys:
 - vendor: the store/merchant name (string)
 - date: the purchase date in YYYY-MM-DD format (empty string if unclear)
 - total_amount: the final total actually charged (number)
@@ -138,18 +107,6 @@ Rules for line_items:
 - The sum of line_items plus tax should be close to total_amount; if a row would make it exceed the total, it is probably a summary row, not an item.
 
 Return only the JSON object. No markdown, no commentary.`;
-
-    if (isPdf) {
-      const dataUrl = await convertPdfToImageUrl(file);
-      if (dataUrl) {
-        const blob = await (await fetch(dataUrl)).blob();
-        const imgFile = new File([blob], 'receipt.png', { type: 'image/png' });
-        const { file_url: imgUrl } = await base44.integrations.Core.UploadFile({ file: imgFile });
-        fileUrls = [imgUrl];
-      } else {
-        prompt += '\nThis may be a PDF receipt.';
-      }
-    }
 
     return base44.integrations.Core.InvokeLLM({
       prompt,
@@ -190,7 +147,7 @@ Return only the JSON object. No markdown, no commentary.`;
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(f => ({ ...f, receipt_image: file_url }));
       setExtracting(true);
-      const result = await extractFromFile(file, file_url);
+      const result = await extractFromFile(file_url);
       const extracted = (typeof result === 'string' ? JSON.parse(result) : result) || {};
       const gotSomething = extracted.vendor || extracted.total_amount || extracted.line_items?.length;
       setForm(f => ({

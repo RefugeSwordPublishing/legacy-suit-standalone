@@ -69,16 +69,27 @@ const ROLE_DEFAULTS = {
   },
 };
 
-// Build a lookup map from saved DB records: { role_feature: { can_read, can_write } }
+// Base-tier map from saved records (custom_role_id NULL rows only): { role_feature: {read,write} }
 function buildPermissionMap(records) {
   const map = {};
   for (const r of records) {
+    if (r.custom_role_id) continue; // per-custom-role overrides handled separately
     map[`${r.role}_${r.feature}`] = { can_read: r.can_read, can_write: r.can_write };
   }
   return map;
 }
 
-// Get effective permission for a role+feature
+// Per-custom-role override map: { customRoleId_feature: {read,write} }
+function buildRolePermissionMap(records) {
+  const roleMap = {};
+  for (const r of records) {
+    if (!r.custom_role_id) continue;
+    roleMap[`${r.custom_role_id}_${r.feature}`] = { can_read: r.can_read, can_write: r.can_write };
+  }
+  return roleMap;
+}
+
+// Get the base-tier permission for a role+feature (saved row -> hardcoded tier default)
 export function getPermission(map, role, feature) {
   const key = `${role}_${feature}`;
   if (map[key]) return map[key];
@@ -87,10 +98,20 @@ export function getPermission(map, role, feature) {
   return ROLE_DEFAULTS[role]?.[feature] || { can_read: false, can_write: false };
 }
 
+// Effective permission: a custom role's own override if it has one, else its base-tier default.
+// Mirrors the DB auth_can() resolution so UI and RLS stay consistent.
+export function getEffectivePermission(map, roleMap, { role, custom_role_id }, feature) {
+  if (custom_role_id) {
+    const override = roleMap[`${custom_role_id}_${feature}`];
+    if (override) return override;
+  }
+  return getPermission(map, role, feature);
+}
+
 // Hook: returns { canRead, canWrite } for the current user's role + a feature key
 export function useFeaturePermission(featureKey) {
   const { currentUser } = useCurrentUser();
-  const { map, isLoading } = useAllPermissions();
+  const { map, roleMap, isLoading } = useAllPermissions();
 
   // Owner and admin always get full access, never blocked. COO is configurable via the matrix.
   const role = currentUser?.role;
@@ -101,11 +122,11 @@ export function useFeaturePermission(featureKey) {
   // While loading, don't block anything
   if (isLoading) return { canRead: true, canWrite: true };
 
-  const perm = getPermission(map, role, featureKey);
+  const perm = getEffectivePermission(map, roleMap, { role, custom_role_id: currentUser?.custom_role_id }, featureKey);
   return { canRead: perm.can_read, canWrite: perm.can_write };
 }
 
-// Hook: returns the full map of all permissions (used by Permissions page)
+// Hook: returns the full map of all permissions (used by Permissions page + Roles editor)
 export function useAllPermissions() {
   const { data: records = [], isLoading, refetch } = useQuery({
     queryKey: ['permissionSettings'],
@@ -114,7 +135,8 @@ export function useAllPermissions() {
   });
 
   const map = buildPermissionMap(records);
-  return { records, map, isLoading, refetch };
+  const roleMap = buildRolePermissionMap(records);
+  return { records, map, roleMap, isLoading, refetch };
 }
 
-export { ROLE_DEFAULTS, buildPermissionMap };
+export { ROLE_DEFAULTS, buildPermissionMap, buildRolePermissionMap };

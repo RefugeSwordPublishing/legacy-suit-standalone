@@ -185,6 +185,12 @@
         "type": "string"
       }
     },
+    "imported_expense_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "subtotal": {
       "type": "number",
       "default": 0

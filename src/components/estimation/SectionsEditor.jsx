@@ -7,7 +7,7 @@ import SectionLineItemsTable from './SectionLineItemsTable';
 
 const fmt = (n) => (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function SectionsEditor({ sections, onChange, categoryMarkups }) {
+export default function SectionsEditor({ sections, onChange, categoryMarkups, autoLaborLine = false, showQuickCount = false }) {
   const [collapsed, setCollapsed] = useState({});
 
   const toggleCollapse = (id) => setCollapsed(c => ({ ...c, [id]: !c[id] }));
@@ -77,6 +77,8 @@ export default function SectionsEditor({ sections, onChange, categoryMarkups }) 
                   items={section.line_items || []}
                   onChange={(items) => updateSectionItems(section.id, items)}
                   categoryMarkups={categoryMarkups}
+                  autoLaborLine={autoLaborLine}
+                  showQuickCount={showQuickCount}
                 />
               </div>
             )}

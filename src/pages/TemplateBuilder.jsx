@@ -133,6 +133,7 @@ export default function TemplateBuilder() {
           sections={form.sections}
           onChange={sections => setForm(f => ({ ...f, sections }))}
           categoryMarkups={form.category_markups}
+          showQuickCount
         />
         <EstimateSummaryPanel sections={form.sections} />
       </div>

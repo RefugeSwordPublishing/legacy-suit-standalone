@@ -28,6 +28,10 @@
       "type": "number",
       "default": 0
     },
+    "labor_cost_per_unit": {
+      "type": "number",
+      "default": 0
+    },
     "default_quantity": {
       "type": "number",
       "default": 1

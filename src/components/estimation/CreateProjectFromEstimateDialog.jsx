@@ -1,14 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { deriveInvoicePrefix } from '@/lib/invoiceNumber';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FolderPlus, HardHat, Clock } from 'lucide-react';
+import { FolderPlus, HardHat, Clock, User } from 'lucide-react';
 
 export default function CreateProjectFromEstimateDialog({ open, onOpenChange, estimate, onCreated, onSkip }) {
   const [name, setName] = useState(estimate?.title || '');
   const [saving, setSaving] = useState(false);
+  const [client, setClient] = useState(null);
+
+  // Pull the full client record so the new project inherits the client's name and address (the
+  // estimate itself carries no address; the client record holds it).
+  useEffect(() => {
+    let active = true;
+    if (open && estimate?.client_id) {
+      base44.entities.Client.get(estimate.client_id).then(c => { if (active) setClient(c || null); }).catch(() => {});
+    } else if (!open) {
+      setClient(null);
+    }
+    return () => { active = false; };
+  }, [open, estimate?.client_id]);
 
   const laborHourRate = Number(localStorage.getItem('estimateLaborHourRate') || '40') || 40;
 
@@ -23,9 +37,13 @@ export default function CreateProjectFromEstimateDialog({ open, onOpenChange, es
   const handleCreate = async () => {
     if (!name.trim()) return;
     setSaving(true);
+    const clientName = client?.name || estimate?.client_name || '';
+    const address = client?.billing_address || '';
     const project = await base44.entities.Project.create({
       name: name.trim(),
-      client_name: estimate?.client_name || '',
+      client_name: clientName,
+      address: address || undefined,
+      invoice_prefix: address ? deriveInvoicePrefix(address) : undefined,
       budget: Math.round((estimate?.grand_total || 0) * 100) / 100,
       budget_hours: laborHours > 0 ? laborHours : undefined,
       status: 'planning',
@@ -56,6 +74,14 @@ export default function CreateProjectFromEstimateDialog({ open, onOpenChange, es
               placeholder="e.g. Smith Residence Remodel"
               autoFocus
             />
+          </div>
+
+          <div className="bg-muted/40 rounded-lg px-3 py-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
+              <User className="w-3 h-3" /> Client
+            </p>
+            <p className="text-sm font-semibold">{client?.name || estimate?.client_name || 'No client on estimate'}</p>
+            {client?.billing_address && <p className="text-xs text-muted-foreground mt-0.5">{client.billing_address}</p>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

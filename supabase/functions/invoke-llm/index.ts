@@ -34,16 +34,33 @@ Deno.serve(async (req) => {
       try {
         const resp = await fetch(url);
         if (!resp.ok) continue;
-        const ct = resp.headers.get("content-type") || "image/jpeg";
-        const media_type = ct.startsWith("image/") ? ct.split(";")[0] : "image/jpeg";
+        const ct = (resp.headers.get("content-type") || "").split(";")[0];
         const bytes = new Uint8Array(await resp.arrayBuffer());
-        content.push({ type: "image", source: { type: "base64", media_type, data: toBase64(bytes) } });
+        const data = toBase64(bytes);
+        const isPdf = ct === "application/pdf" || url.toLowerCase().split("?")[0].endsWith(".pdf");
+        if (isPdf) {
+          // Claude reads PDFs natively as a document block (base64, no beta header needed).
+          content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
+        } else {
+          const media_type = ct.startsWith("image/") ? ct : "image/jpeg";
+          content.push({ type: "image", source: { type: "base64", media_type, data } });
+        }
       } catch (_e) { /* skip unreadable file */ }
     }
 
     let text = prompt || "Extract the requested data.";
     if (response_json_schema) {
-      text += `\n\nReturn ONLY a JSON object matching this schema. No markdown, no code fences, no explanation:\n${JSON.stringify(response_json_schema)}`;
+      // Ask for a FLAT object keyed by the schema's own top-level property names. Dumping the raw
+      // JSON Schema here made the model sometimes echo the schema envelope ({type, properties})
+      // with the values nested inside, which callers reading top-level keys then can't find.
+      const keys = response_json_schema?.properties && typeof response_json_schema.properties === "object"
+        ? Object.keys(response_json_schema.properties)
+        : null;
+      if (keys && keys.length) {
+        text += `\n\nReturn ONLY a flat JSON object whose top-level keys are exactly: ${keys.join(", ")}. Do NOT wrap it in a JSON Schema; do NOT include "type" or "properties" keys. No markdown, no code fences, no explanation.`;
+      } else {
+        text += `\n\nReturn ONLY a JSON object matching this schema. No markdown, no code fences, no explanation:\n${JSON.stringify(response_json_schema)}`;
+      }
     }
     content.push({ type: "text", text });
 
@@ -68,7 +85,18 @@ Deno.serve(async (req) => {
     const rawText = (textBlock?.text ?? "").trim();
     const cleaned = rawText.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
     try {
-      return json(JSON.parse(cleaned));
+      let parsed = JSON.parse(cleaned);
+      // Defense in depth: if the model still echoed the schema envelope ({type:"object",
+      // properties:{...actual values...}}) and the requested keys are nested under .properties,
+      // unwrap so callers get the flat object they asked for.
+      const wantKeys = response_json_schema?.properties && typeof response_json_schema.properties === "object"
+        ? Object.keys(response_json_schema.properties) : [];
+      if (parsed && typeof parsed === "object" && parsed.type === "object" &&
+          parsed.properties && typeof parsed.properties === "object" && !Array.isArray(parsed.properties) &&
+          wantKeys.some((k) => k in parsed.properties)) {
+        parsed = parsed.properties;
+      }
+      return json(parsed);
     } catch (_e) {
       // Return raw text so callers that expected free-form still get something.
       return json({ _raw: rawText });

@@ -87,18 +87,18 @@ export default function EstimateTemplates() {
       ) : (
         <div className="space-y-3">
           {templates.map(tmpl => (
-            <div key={tmpl.id} className="bg-card border border-border rounded-lg px-5 py-4 flex items-center justify-between gap-4">
+            <div key={tmpl.id} className="bg-card border border-border rounded-lg px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="font-semibold text-foreground">{tmpl.name}</span>
-                  <Badge variant="outline" className="text-xs">{(tmpl.sections || []).length} sections</Badge>
-                  <Badge variant="outline" className="text-xs">{totalItems(tmpl)} items</Badge>
+                  <Badge variant="outline" className="text-xs shrink-0">{(tmpl.sections || []).length} sections</Badge>
+                  <Badge variant="outline" className="text-xs shrink-0">{totalItems(tmpl)} items</Badge>
                 </div>
                 {tmpl.description && (
                   <p className="text-sm text-muted-foreground truncate">{tmpl.description}</p>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
                   onClick={() => handleUseTemplate(tmpl)}

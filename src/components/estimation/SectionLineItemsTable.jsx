@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Plus, BookOpen } from 'lucide-react';
+import { Trash2, Plus, BookOpen, Pin } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import CatalogPickerDialog from './CatalogPickerDialog';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,7 +16,7 @@ function calcLineTotal(item) {
   return base + base * ((item.markup_pct || 0) / 100);
 }
 
-export default function SectionLineItemsTable({ items, onChange, categoryMarkups }) {
+export default function SectionLineItemsTable({ items, onChange, categoryMarkups, autoLaborLine = false, showQuickCount = false }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const updateItem = (id, field, value) => {
@@ -60,7 +60,9 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
     const defaultMarkup = categoryMarkups?.[catalogItem.category] ?? catalogItem.default_markup ?? 0;
     const qty = catalogItem.default_quantity || 1;
     const unitCost = catalogItem.unit_cost || 0;
-    onChange([...items, {
+    // Seed the per-unit labor from the catalog so the auto-labor line picks it up (materials only).
+    const laborPerUnit = catalogItem.category === 'materials' ? (catalogItem.labor_cost_per_unit || 0) : 0;
+    const next = [...items, {
       id: uuidv4(),
       catalog_item_id: catalogItem.id,
       cost_code_id: '',
@@ -71,9 +73,33 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
       quantity: qty,
       unit: catalogItem.unit || '',
       unit_cost: unitCost,
+      labor_cost_per_unit: laborPerUnit,
       markup_pct: defaultMarkup,
       line_total: calcLineTotal({ quantity: qty, unit_cost: unitCost, markup_pct: defaultMarkup }),
-    }]);
+    }];
+    // When a material carrying a per-unit labor cost is added to a section that has no labor line yet,
+    // drop in an Auto labor line so the summed labor actually shows. Gated to the estimate builder
+    // (autoLaborLine) so it never fires in TemplateBuilder/ChangeOrderBuilder — that keeps templates
+    // free of an injected labor line that would duplicate on import. The parent's auto-labor pass then
+    // fills the new line's amount from the materials.
+    if (autoLaborLine && laborPerUnit > 0 && !items.some(i => i.category === 'labor')) {
+      next.push({
+        id: uuidv4(),
+        catalog_item_id: '',
+        cost_code_id: '',
+        cost_code: '',
+        description: 'Labor',
+        item_description: '',
+        category: 'labor',
+        quantity: 1,
+        unit: 'LS',
+        unit_cost: 0,
+        markup_pct: categoryMarkups?.labor ?? 0,
+        line_total: 0,
+        labor_auto: true,
+      });
+    }
+    onChange(next);
   };
 
   const removeItem = (id) => onChange(items.filter(i => i.id !== id));
@@ -207,9 +233,20 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                      ${fmt(item.line_total)}
                    </td>
                    <td className="px-1 py-1.5">
-                     <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors">
-                       <Trash2 className="w-3.5 h-3.5" />
-                     </button>
+                     <div className="flex items-center gap-1">
+                       {showQuickCount && item.category !== 'labor' && (
+                         <button
+                           onClick={() => updateItem(item.id, 'quick_count', !item.quick_count)}
+                           title={item.quick_count ? 'Pinned to Rapid Estimate quick-count' : 'Pin to Rapid Estimate quick-count'}
+                           className={`transition-colors ${item.quick_count ? 'text-primary' : 'text-muted-foreground/40 hover:text-muted-foreground'}`}
+                         >
+                           <Pin className={`w-3.5 h-3.5 ${item.quick_count ? 'fill-current' : ''}`} />
+                         </button>
+                       )}
+                       <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                         <Trash2 className="w-3.5 h-3.5" />
+                       </button>
+                     </div>
                    </td>
                  </tr>
                ))}
@@ -240,9 +277,20 @@ export default function SectionLineItemsTable({ items, onChange, categoryMarkups
                      placeholder="Client-facing description (optional)"
                    />
                  </div>
-                 <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0">
-                   <Trash2 className="w-3.5 h-3.5" />
-                 </button>
+                 <div className="flex items-center gap-2 flex-shrink-0">
+                   {showQuickCount && item.category !== 'labor' && (
+                     <button
+                       onClick={() => updateItem(item.id, 'quick_count', !item.quick_count)}
+                       title={item.quick_count ? 'Pinned to Rapid Estimate quick-count' : 'Pin to Rapid Estimate quick-count'}
+                       className={`transition-colors ${item.quick_count ? 'text-primary' : 'text-muted-foreground/40'}`}
+                     >
+                       <Pin className={`w-3.5 h-3.5 ${item.quick_count ? 'fill-current' : ''}`} />
+                     </button>
+                   )}
+                   <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                     <Trash2 className="w-3.5 h-3.5" />
+                   </button>
+                 </div>
                </div>
 
                <div className="grid grid-cols-3 gap-1.5">

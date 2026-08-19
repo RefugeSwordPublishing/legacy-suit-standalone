@@ -43,7 +43,7 @@ export default function UsersPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteFirstName, setInviteFirstName] = useState('');
   const [inviteLastName, setInviteLastName] = useState('');
-  const [inviteRole, setInviteRole] = useState('crew_member');
+  const [inviteRole, setInviteRole] = useState(''); // holds a custom_role id (or a base role in the no-custom-roles fallback)
   const [inviting, setInviting] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [editUserDetails, setEditUserDetails] = useState(null);
@@ -104,7 +104,12 @@ export default function UsersPage() {
       return;
     }
     setInviting(true);
-    await base44.users.inviteUser(inviteEmail, (inviteRole === 'owner' || inviteRole === 'coo') ? 'admin' : 'user');
+    // inviteRole is a custom_role id; resolve it to base_role + role_label (the edit dialog does the
+    // same). Fall back to treating inviteRole as a base role if the tenant has no custom roles seeded.
+    const cr = customRoles.find(r => r.id === inviteRole);
+    const baseRole = cr ? cr.base_role : inviteRole;
+    const roleLabel = cr ? cr.label : undefined;
+    await base44.users.inviteUser(inviteEmail, (baseRole === 'owner' || baseRole === 'coo') ? 'admin' : 'user');
     // Create a UserProfile for the new user
     const allUsers = await base44.entities.User.list();
     const newUser = allUsers.find(u => u.email === inviteEmail);
@@ -117,7 +122,9 @@ export default function UsersPage() {
           first_name: inviteFirstName.trim() || '',
           last_name: inviteLastName.trim() || '',
           full_name: [inviteFirstName.trim(), inviteLastName.trim()].filter(Boolean).join(' '),
-          role: inviteRole,
+          role: baseRole,
+          ...(roleLabel ? { role_label: roleLabel } : {}),
+          ...(cr ? { custom_role_id: cr.id } : {}),
         });
       }
     }
@@ -126,7 +133,7 @@ export default function UsersPage() {
     setInviteEmail('');
     setInviteFirstName('');
     setInviteLastName('');
-    setInviteRole('crew_member');
+    setInviteRole('');
     queryClient.invalidateQueries({ queryKey: ['user-profiles'] });
   };
 
@@ -183,7 +190,7 @@ export default function UsersPage() {
       full_name: [editFirstName.trim(), editLastName.trim()].filter(Boolean).join(' ') || undefined,
       is_active: editIsActive,
     };
-    if (cr) { updates.role = cr.base_role; updates.role_label = cr.label; }
+    if (cr) { updates.role = cr.base_role; updates.role_label = cr.label; updates.custom_role_id = cr.id; }
 
     if (canEditWage) {
       updates.payroll_id = editPayrollId.trim() || null;
@@ -417,21 +424,18 @@ export default function UsersPage() {
             <div>
               <Label>Role</Label>
               <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="owner">Owner</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="coo">Chief of Operations</SelectItem>
-                  <SelectItem value="site_manager">Site Manager</SelectItem>
-                  <SelectItem value="crew_member">Crew Member</SelectItem>
-                  <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="client">Client</SelectItem>
+                  {customRoles.length > 0
+                    ? customRoles.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)
+                    : ['owner', 'admin', 'coo', 'site_manager', 'crew_member', 'employee', 'client']
+                        .map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r] || r}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <Button
               onClick={handleInvite}
-              disabled={!inviteEmail || inviting}
+              disabled={!inviteEmail || !inviteRole || inviting}
               className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
             >
               {inviting ? 'Sending...' : 'Send Invite'}

@@ -24,18 +24,25 @@ function fmt(n) {
   return `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 function calcLineTotal(item) {
   const base = (item.quantity || 0) * (item.unit_cost || 0);
   return base + base * ((item.markup_pct || 0) / 100);
 }
 
+// QuickBooks rounds each line to the penny and sums those, so the invoice total is the sum of the
+// ROUNDED line amounts, not the raw sum. Totaling raw values left GW a cent off from QBO (e.g.
+// 4346.98 vs 4346.99) — confusing on screen and able to leave a residual balance on the QBO side.
 function calcTotals(lineItems) {
-  const subtotal = lineItems.reduce((s, i) => s + (i.quantity || 0) * (i.unit_cost || 0), 0);
-  const totalMarkup = lineItems.reduce((s, i) => {
-    const base = (i.quantity || 0) * (i.unit_cost || 0);
-    return s + base * ((i.markup_pct || 0) / 100);
-  }, 0);
-  return { subtotal, totalMarkup, grand_total: subtotal + totalMarkup };
+  let subtotal = 0, grand = 0;
+  for (const i of lineItems) {
+    subtotal += round2((i.quantity || 0) * (i.unit_cost || 0));
+    grand += round2(calcLineTotal(i));
+  }
+  subtotal = round2(subtotal);
+  grand = round2(grand);
+  return { subtotal, totalMarkup: round2(grand - subtotal), grand_total: grand };
 }
 
 const PAYMENT_TERMS = [
@@ -87,6 +94,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   const [sovEntries, setSovEntries] = useState([]);
   const [coSovEntries, setCoSovEntries] = useState([]);
   const [importedBidIds, setImportedBidIds] = useState([]);
+  const [importedExpenseIds, setImportedExpenseIds] = useState([]);
 
   // Load source data
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: () => base44.entities.Client.list(), enabled: open });
@@ -98,6 +106,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   const { data: clientChangeOrders = [] } = useQuery({ queryKey: ['client-change-orders'], queryFn: () => base44.entities.ClientChangeOrder.list(), enabled: open });
   const { data: costCodes = [] } = useQuery({ queryKey: ['cost-codes'], queryFn: () => base44.entities.CostCode.list(), enabled: open });
   const { data: allInvoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: () => base44.entities.Invoice.list(), enabled: open });
+  const { data: allExpenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date'), enabled: open });
 
   const selectedClient = clients.find(c => c.id === clientId);
   const clientSuggestions = clientSearch.length > 0
@@ -127,6 +136,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
         setSovEntries(invoice.sov_entries || []);
         setCoSovEntries(invoice.co_sov_entries || []);
         setImportedBidIds(invoice.imported_bid_ids || []);
+        setImportedExpenseIds(invoice.imported_expense_ids || []);
         setBillingMode(invoice.billing_mode || 'line_items');
       } else {
         setClientId(''); setClientSearch(''); setProjectId(''); setInvoiceNumber('');
@@ -137,6 +147,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
         setSovEntries([]);
         setCoSovEntries([]);
         setImportedBidIds([]);
+        setImportedExpenseIds([]);
         setBillingMode('line_items');
       }
     }
@@ -190,6 +201,15 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     !billedBidIds.has(bs.id) && !importedBidIds.includes(bs.id)
   );
   const alreadyImportedBids = projectBids.filter(bs => importedBidIds.includes(bs.id));
+
+  // Billable expenses for this project. Available = billable, not staged here, and not already
+  // billed by a different invoice (billed expenses carry the invoice_id of whoever consumed them).
+  const projectExpenses = allExpenses.filter(e => e.project_id === projectId && e.billable);
+  const availableExpenses = projectExpenses.filter(e =>
+    !importedExpenseIds.includes(e.id) && (!e.billed || e.invoice_id === invoice?.id)
+  );
+  const alreadyImportedExpenses = projectExpenses.filter(e => importedExpenseIds.includes(e.id));
+  const expenseLabel = (e) => `${e.vendor || e.description || 'Expense'}${e.total_amount ? ` (${fmt(e.total_amount)})` : ''}`;
 
   // Line item operations
   const updateLine = (id, field, value) => {
@@ -286,6 +306,33 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     toast({ title: `Bid imported: ${bs.sub_contractor_name}` });
   };
 
+  const importFromExpense = (expenseId) => {
+    const exp = allExpenses.find(e => e.id === expenseId);
+    if (!exp) return;
+    const amount = exp.total_amount || 0;
+    const line = {
+      id: uuidv4(),
+      source: 'expense',
+      source_ref_id: exp.id,
+      name: exp.vendor || exp.description || 'Expense',
+      description: exp.description || (exp.date ? `Expense ${exp.date}` : ''),
+      cost_code: exp.cost_code || '',
+      category: exp.expense_category || 'materials',
+      quantity: 1,
+      unit_cost: amount,
+      markup_pct: 0,
+      line_total: amount,
+    };
+    setLineItems(prev => [...prev.filter(i => i.name), line]);
+    setImportedExpenseIds(prev => [...prev, expenseId]);
+    toast({ title: `Expense imported: ${exp.vendor || 'expense'}` });
+  };
+
+  const removeImportedExpense = (expenseId) => {
+    setLineItems(prev => prev.filter(i => !(i.source === 'expense' && i.source_ref_id === expenseId)));
+    setImportedExpenseIds(prev => prev.filter(id => id !== expenseId));
+  };
+
   const removeImportedBid = (bidSubId) => {
     // Remove bid and its CO lines from line items
     const bs = bidSubmissions.find(b => b.id === bidSubId);
@@ -328,7 +375,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
 
   const buildPayload = (status) => {
     const isSov = billingMode === 'schedule_of_values';
-    const effectiveLineItems = isSov ? buildSOVLineItems() : lineItems.map(i => ({ ...i, line_total: calcLineTotal(i) }));
+    const effectiveLineItems = isSov ? buildSOVLineItems() : lineItems.map(i => ({ ...i, line_total: round2(calcLineTotal(i)) }));
     const effectiveTotal = isSov ? sovTotal : grand_total;
     return {
       invoice_number: invoiceNumber,
@@ -343,14 +390,27 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
       issue_date: issueDate,
       due_date: calcDueDate(issueDate, paymentTerms) || undefined,
       notes,
-      line_items: isSov ? lineItems.map(i => ({ ...i, line_total: calcLineTotal(i) })) : effectiveLineItems,
+      line_items: isSov ? lineItems.map(i => ({ ...i, line_total: round2(calcLineTotal(i)) })) : effectiveLineItems,
       sov_entries: isSov ? sovEntries : [],
       co_sov_entries: isSov ? coSovEntries : [],
       imported_bid_ids: importedBidIds,
+      imported_expense_ids: importedExpenseIds,
       subtotal: isSov ? sovTotal : subtotal,
       total_markup: isSov ? 0 : totalMarkup,
       grand_total: effectiveTotal,
     };
+  };
+
+  // Mark the expenses this invoice bills as billed (with a back-pointer), and release any that were
+  // removed since it was last saved, so an expense can't be double-billed and frees up if dropped.
+  const syncExpenseBilling = async (invoiceId) => {
+    if (!invoiceId) return;
+    const prevIds = invoice?.imported_expense_ids || [];
+    const removed = prevIds.filter(id => !importedExpenseIds.includes(id));
+    await Promise.all([
+      ...importedExpenseIds.map(id => base44.entities.Expense.update(id, { billed: true, invoice_id: invoiceId })),
+      ...removed.map(id => base44.entities.Expense.update(id, { billed: false, invoice_id: null })),
+    ]);
   };
 
   const handleSave = async (status = invoice?.status || 'draft') => {
@@ -360,11 +420,13 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     }
     setSaving(true);
     const payload = buildPayload(status);
+    let saved;
     if (invoice) {
-      await base44.entities.Invoice.update(invoice.id, payload);
+      saved = await base44.entities.Invoice.update(invoice.id, payload);
     } else {
-      await base44.entities.Invoice.create(payload);
+      saved = await base44.entities.Invoice.create(payload);
     }
+    await syncExpenseBilling(saved?.id || invoice?.id);
     setSaving(false);
     onSaved();
   };
@@ -383,6 +445,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
       savedInvoice = await base44.entities.Invoice.create(payload);
     }
     const invoiceId = savedInvoice?.id || invoice?.id;
+    await syncExpenseBilling(invoiceId);
     try {
       await base44.functions.invoke('quickbooksSyncV2', { action: 'push_invoice', invoice_id: invoiceId });
       toast({ title: 'Pushed to QuickBooks!', description: 'Invoice, client, and project synced.' });
@@ -509,8 +572,43 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                 </div>
               )}
 
-              {projectEstimates.length === 0 && projectBids.length === 0 && (
-                <p className="text-sm text-muted-foreground">No estimates or approved bids found for this project.</p>
+              {/* Available billable expenses to import */}
+              {availableExpenses.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {availableExpenses.map(e => (
+                    <Button key={e.id} size="sm" variant="outline" onClick={() => importFromExpense(e.id)} className="gap-1.5">
+                      <Plus className="w-3 h-3" />From Expense: {expenseLabel(e)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              {/* Already-imported expenses (with remove option) */}
+              {alreadyImportedExpenses.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {alreadyImportedExpenses.map(e => (
+                    <div key={e.id} className="flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {expenseLabel(e)} (imported)
+                      <button onClick={() => removeImportedExpense(e.id)} className="ml-1 hover:text-red-600 transition-colors">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Expenses billed on another invoice */}
+              {projectExpenses.filter(e => e.billed && e.invoice_id && e.invoice_id !== invoice?.id).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {projectExpenses.filter(e => e.billed && e.invoice_id && e.invoice_id !== invoice?.id).map(e => (
+                    <div key={e.id} className="flex items-center gap-1 bg-muted border border-border rounded-md px-2 py-1 text-xs text-muted-foreground">
+                      {expenseLabel(e)}, already billed
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {projectEstimates.length === 0 && projectBids.length === 0 && projectExpenses.length === 0 && (
+                <p className="text-sm text-muted-foreground">No estimates, approved bids, or billable expenses found for this project.</p>
               )}
             </div>
           )}

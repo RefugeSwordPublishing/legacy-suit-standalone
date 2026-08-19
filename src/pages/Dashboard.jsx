@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useTheme } from '@/lib/ThemeContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser } from '@/lib/UserContext';
 import { canViewAllProjects, canManageProjects, canAddMaterials, isClient } from '@/lib/permissions';
@@ -166,7 +165,6 @@ export default function Dashboard() {
 
   const canCreate = canManageProjects(currentUser);
   const canRequestMaterials = canAddMaterials(currentUser);
-  const { theme } = useTheme();
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -182,8 +180,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               onClick={() => setShowMaterialRequest(true)}
-              style={theme === 'dark' ? { borderColor: 'hsl(var(--accent))', color: 'hsl(var(--border))' } : {}}
-              className="flex-1 md:flex-none px-4 py-2 text-sm"
+              className="flex-1 md:flex-none px-4 py-2 text-sm border-accent text-accent hover:bg-accent/10 hover:text-accent"
             >
               <Package className="w-4 h-4 mr-2" /> Material Request
             </Button>

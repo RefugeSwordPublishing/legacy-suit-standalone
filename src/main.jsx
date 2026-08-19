@@ -16,11 +16,22 @@ window.addEventListener('unhandledrejection', (e) => { logError('unhandledreject
 // Register the service worker (push + offline app shell; no-op if unsupported). Push permission is
 // only requested later, when the user opts in from the notifications screen.
 if ('serviceWorker' in navigator) {
+  // When a new service worker takes control (a deploy that changed sw.js), reload once so the page
+  // runs the new code instead of the old cached bundle. Only fire on a genuine UPDATE: on the very
+  // first install there's no prior controller, and clients.claim() would otherwise reload needlessly.
+  const hadController = !!navigator.serviceWorker.controller
+  let reloadedForSw = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloadedForSw) return
+    reloadedForSw = true
+    window.location.reload()
+  })
   window.addEventListener('load', () => {
     registerServiceWorker()
     // Tell the SW to cache the assets this page loaded, so a cold offline start has the JS/CSS it
     // needs (the SW isn't controlling this first load, so it can't intercept these requests itself).
     navigator.serviceWorker.ready.then((reg) => {
+      reg.update().catch(() => {}) // check for a newer SW on every startup
       const warm = () => {
         const urls = new Set()
         document.querySelectorAll('script[src], link[href]').forEach((el) => {

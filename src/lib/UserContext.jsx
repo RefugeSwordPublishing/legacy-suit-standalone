@@ -86,6 +86,8 @@ async function loadEnrichedUser() {
         // Prefer the computed first+last name so it matches subtask assignment strings
         full_name: computedName || p.full_name || user.full_name,
         assigned_project_ids: p.assigned_project_ids || [],
+        custom_role_id: p.custom_role_id || null,
+        role_label: p.role_label || null,
         profile_id: p.id,
         theme: p.theme || 'light',
         is_platform_admin: p.is_platform_admin === true,
@@ -110,6 +112,8 @@ async function loadEnrichedUser() {
           last_name: p.last_name || user.last_name,
           full_name: computedName || p.full_name || user.full_name,
           assigned_project_ids: p.assigned_project_ids || [],
+          custom_role_id: p.custom_role_id || null,
+          role_label: p.role_label || null,
           profile_id: p.id,
           theme: p.theme || 'light',
           is_platform_admin: p.is_platform_admin === true,

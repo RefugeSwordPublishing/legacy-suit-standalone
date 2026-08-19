@@ -219,48 +219,91 @@ export default function Estimates() {
               <p>No change orders yet.</p>
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="overflow-x-auto"><table className="w-full text-sm min-w-[640px]">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left px-4 py-3">#</th>
-                    <th className="text-left px-4 py-3">Title</th>
-                    <th className="text-left px-4 py-3">Estimate</th>
-                    <th className="text-left px-4 py-3">Client</th>
-                    <th className="text-right px-4 py-3">CO Total</th>
-                    <th className="text-right px-4 py-3">New Contract</th>
-                    <th className="text-left px-4 py-3">Status</th>
-                    <th className="text-left px-4 py-3">Date Issued</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {changeOrders.map(co => (
-                    <tr
-                      key={co.id}
-                      className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer"
-                      onClick={() => navigate(`/change-orders/${co.id}`)}
-                    >
-                      <td className="px-4 py-3 text-muted-foreground">{co.change_order_number || ''}</td>
-                      <td className="px-4 py-3 font-medium">{co.title || 'Untitled'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{co.estimate_number || ''}</td>
-                      <td className="px-4 py-3">{co.client_name || ''}</td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {co.change_order_total != null ? `$${co.change_order_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {co.new_contract_total != null ? `$${co.new_contract_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge className={`text-xs capitalize ${STATUS_COLORS[co.status] || ''}`}>
-                          {co.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{co.date_issued || ''}</td>
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block rounded-lg border border-border overflow-hidden">
+                <div className="overflow-x-auto"><table className="w-full text-sm min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left px-4 py-3">#</th>
+                      <th className="text-left px-4 py-3">Title</th>
+                      <th className="text-left px-4 py-3">Estimate</th>
+                      <th className="text-left px-4 py-3">Client</th>
+                      <th className="text-right px-4 py-3">CO Total</th>
+                      <th className="text-right px-4 py-3">New Contract</th>
+                      <th className="text-left px-4 py-3">Status</th>
+                      <th className="text-left px-4 py-3">Date Issued</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table></div>
-            </div>
+                  </thead>
+                  <tbody>
+                    {changeOrders.map(co => (
+                      <tr
+                        key={co.id}
+                        className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer"
+                        onClick={() => navigate(`/change-orders/${co.id}`)}
+                      >
+                        <td className="px-4 py-3 text-muted-foreground">{co.change_order_number || ''}</td>
+                        <td className="px-4 py-3 font-medium">{co.title || 'Untitled'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{co.estimate_number || ''}</td>
+                        <td className="px-4 py-3">{co.client_name || ''}</td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {co.change_order_total != null ? `$${co.change_order_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {co.new_contract_total != null ? `$${co.new_contract_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge className={`text-xs capitalize ${STATUS_COLORS[co.status] || ''}`}>
+                            {co.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{co.date_issued || ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div>
+              </div>
+
+              {/* Mobile cards (mirrors the Estimates list) */}
+              <div className="md:hidden space-y-3">
+                {changeOrders.map(co => (
+                  <div
+                    key={co.id}
+                    onClick={() => navigate(`/change-orders/${co.id}`)}
+                    className="bg-card border border-border rounded-lg px-4 py-3 cursor-pointer active:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold text-foreground">{co.title || 'Untitled'}</span>
+                          <Badge className={`text-xs capitalize shrink-0 ${STATUS_COLORS[co.status] || ''}`}>
+                            {co.status}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
+                          {co.change_order_number && <span>{co.change_order_number}</span>}
+                          {co.estimate_number && <span>· {co.estimate_number}</span>}
+                          {co.client_name && <span>· {co.client_name}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {co.change_order_total != null && (
+                          <div className="font-bold text-foreground">
+                            ${co.change_order_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
+                        {co.new_contract_total != null && (
+                          <div className="text-[11px] text-muted-foreground">
+                            New: ${co.new_contract_total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {co.date_issued && <div className="text-[11px] text-muted-foreground mt-1.5">Issued {co.date_issued}</div>}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </TabsContent>
 

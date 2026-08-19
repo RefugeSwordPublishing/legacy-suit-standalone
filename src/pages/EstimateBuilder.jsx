@@ -429,6 +429,7 @@ export default function EstimateBuilder() {
             sections={form.sections}
             onChange={handleSectionsChange}
             categoryMarkups={form.category_markups}
+            autoLaborLine
           />
 
           {/* Scope of Work */}

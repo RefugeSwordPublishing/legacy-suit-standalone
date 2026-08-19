@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileText, Plus, Eye, Trash2, Loader2, ExternalLink } from 'lucide-react';
+import { FileText, Plus, Eye, Trash2, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import InvoiceFormDialog from '@/components/estimation/InvoiceFormDialog';
 import InvoicePrintView from '@/components/estimation/InvoicePrintView';
@@ -168,9 +168,30 @@ export default function Invoices() {
   const handleClose = () => { setShowForm(false); setEditingInvoice(null); };
 
   const handleDelete = async (inv) => {
-    if (!window.confirm(`Delete invoice ${inv.invoice_number || 'Draft'}? Any imported bids will return to unbilled status.`)) return;
+    if (!window.confirm(`Delete invoice ${inv.invoice_number || 'Draft'}? Any billed expenses on it will return to unbilled status.`)) return;
     await base44.entities.Invoice.delete(inv.id);
     queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
+
+  const [syncing, setSyncing] = useState(false);
+  const handleSyncPayments = async () => {
+    setSyncing(true);
+    try {
+      const res = await base44.functions.invoke('quickbooksReconcile', {});
+      if (res.data?.error) throw new Error(res.data.error);
+      const paid = res.data?.marked_paid || [];
+      const checked = res.data?.checked ?? 0;
+      if (paid.length) {
+        toast({ title: `Marked ${paid.length} invoice${paid.length > 1 ? 's' : ''} paid`, description: paid.join(', ') });
+      } else {
+        toast({ title: 'Payments up to date', description: checked ? `Checked ${checked} open invoice${checked > 1 ? 's' : ''} against QuickBooks.` : 'No outstanding QuickBooks invoices to check.' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    } catch (e) {
+      toast({ title: 'Payment sync failed', description: e?.message || String(e), variant: 'destructive' });
+    }
+    setSyncing(false);
   };
 
   const handlePush = async (inv) => {
@@ -227,13 +248,26 @@ export default function Invoices() {
           </h1>
           <p className="font-highway text-sm text-muted-foreground mt-1">{invoices.length} total invoices</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 font-highway text-sm font-medium transition-colors"
-          style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', borderRadius: 4 }}
-        >
-          <Plus className="w-4 h-4" /> New Invoice
-        </button>
+        <div className="flex items-center gap-2">
+          {provider === 'quickbooks' && (
+            <button
+              onClick={handleSyncPayments}
+              disabled={syncing}
+              title="Check open invoices against QuickBooks and mark any paid ones paid"
+              className="flex items-center gap-2 px-4 py-2 font-highway text-sm font-medium transition-colors border disabled:opacity-60"
+              style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))', borderRadius: 4 }}
+            >
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Sync Payments
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 font-highway text-sm font-medium transition-colors"
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', borderRadius: 4 }}
+          >
+            <Plus className="w-4 h-4" /> New Invoice
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

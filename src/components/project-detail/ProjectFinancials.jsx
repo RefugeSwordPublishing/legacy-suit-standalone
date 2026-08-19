@@ -11,6 +11,38 @@ function fmt(n) {
 // Salaried management is not tracked as hourly labor cost.
 const MANAGEMENT_ROLES = ['owner', 'coo', 'admin', 'site_manager'];
 
+// Friendly series names, shared by the chart legend and tooltip.
+const SERIES_LABELS = {
+  'Est. Labor': 'Est. Labor',
+  'Est. Sub': 'Est. Subcontractor',
+  'Estimated Materials': 'Est. Materials',
+  'Actual Labor': 'Actual Labor',
+  'Actual Sub': 'Actual Subcontractor',
+  'Actual Materials': 'Actual Materials',
+};
+
+// Only show the series that actually have a value for the hovered bar, so tapping "Materials"
+// shows just the two material rows instead of all six with four blanks.
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const rows = payload.filter(p => (p.value || 0) > 0);
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 shadow-md text-xs">
+      <div className="font-semibold text-foreground mb-1">{label}</div>
+      {rows.map(r => (
+        <div key={r.dataKey} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: r.color }} />
+            <span className="text-muted-foreground">{SERIES_LABELS[r.dataKey] || r.name}</span>
+          </span>
+          <span className="font-semibold text-foreground">{fmt(r.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ProjectFinancials({ project, projectId }) {
   const { data: estimates = [] } = useQuery({
     queryKey: ['estimates-for-project', projectId],
@@ -230,15 +262,8 @@ export default function ProjectFinancials({ project, projectId }) {
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(v, name) => v > 0 ? [fmt(v), name] : null} />
-            <Legend formatter={name => ({
-              'Est. Labor': 'Est. Labor',
-              'Est. Sub': 'Est. Subcontractor',
-              'Estimated Materials': 'Est. Materials',
-              'Actual Labor': 'Actual Labor',
-              'Actual Sub': 'Actual Subcontractor',
-              'Actual Materials': 'Actual Materials',
-            }[name] || name)} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+            <Legend formatter={name => SERIES_LABELS[name] || name} />
             {/* Estimated stacked: labor + sub + materials */}
             <Bar dataKey="Est. Labor" stackId="estimated" fill="#B58A45" radius={[0, 0, 0, 0]} />
             <Bar dataKey="Est. Sub" stackId="estimated" fill="#355848" radius={[4, 4, 0, 0]} />

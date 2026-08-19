@@ -47,6 +47,9 @@
       "type": "boolean",
       "default": false
     },
+    "invoice_id": {
+      "type": "string"
+    },
     "billing_mode": {
       "type": "string",
       "enum": [

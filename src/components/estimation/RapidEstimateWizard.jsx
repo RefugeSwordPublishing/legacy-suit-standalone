@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, ChevronRight, ChevronLeft, Minus, Plus, CheckCircle2, LayoutTemplate, Trash2 } from 'lucide-react';
+import { Loader2, Zap, ChevronRight, ChevronLeft, ChevronDown, Minus, Plus, CheckCircle2, LayoutTemplate, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -75,11 +75,10 @@ function calcAutoLaborTotal(section, quantities) {
     }, 0);
 }
 
-// Step 2: Walk through sections
+// Renders one section's items as quantity/cost inputs (used inside the collapsible walkthrough).
 function SectionQuantityStep({ section, quantities, unitCosts, laborCostsPerUnit, laborTotals, onQuantityChange, onUnitCostChange, onLaborCostPerUnitChange, onLaborTotalChange }) {
   const items = section.line_items || [];
   const laborItem = items.find(i => i.category === 'labor');
-  const materialItemsWithLabor = items.filter(i => i.category === 'materials' && ((laborCostsPerUnit[i.id] ?? i.labor_cost_per_unit) || 0) > 0);
 
   // Re-derive auto total live using overridden labor_cost_per_unit values
   const autoLaborTotal = (section.line_items || [])
@@ -97,14 +96,11 @@ function SectionQuantityStep({ section, quantities, unitCosts, laborCostsPerUnit
   const inputItems = items.filter(i => i.category !== 'labor');
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground mb-2">
-        Enter quantities and adjust unit costs. {materialItemsWithLabor.length > 0 ? 'Labor cost is auto-calculated, you can override it.' : ''}
-      </p>
+    <div>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">No items in this section.</p>
+        <p className="text-sm text-muted-foreground text-center py-6">No items in this section.</p>
       ) : (
-        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+        <div className="space-y-3">
           {inputItems.map(item => {
             const qty = quantities[item.id] ?? item.quantity ?? 1;
             const isMaterial = item.category === 'materials';
@@ -205,6 +201,91 @@ function SectionQuantityStep({ section, quantities, unitCosts, laborCostsPerUnit
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Step 2: Walkthrough — all sections on one screen (collapsible), with a sticky quick-count bar of
+// the template's pinned line items so cross-room takeoff items (doors, windows, ...) can be tallied
+// from anywhere. The bar and each section share the same `quantities` state, so a count entered in
+// either place stays in sync.
+function WalkthroughStep(props) {
+  const { sections, quantities, onQuantityChange } = props;
+  const [collapsed, setCollapsed] = useState({});
+  const toggle = (id) => setCollapsed(c => ({ ...c, [id]: !c[id] }));
+
+  const quickItems = sections.flatMap(s =>
+    (s.line_items || [])
+      .filter(li => li.quick_count && li.category !== 'labor')
+      .map(li => ({ li, sectionName: s.name }))
+  );
+
+  return (
+    <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+      {quickItems.length > 0 && (
+        <div className="sticky top-0 z-10 -mx-1 px-1 pt-1 pb-2 bg-background/95 backdrop-blur border-b border-border">
+          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Quick count</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto">
+            {quickItems.map(({ li, sectionName }) => {
+              const qty = quantities[li.id] ?? li.quantity ?? 0;
+              return (
+                <div key={li.id} className="flex items-center justify-between gap-2 bg-card border border-border rounded-lg pl-2.5 pr-1.5 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-foreground truncate">{li.description}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{sectionName}</div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => onQuantityChange(li.id, Math.max(0, qty - 1))}
+                      className="w-8 h-8 rounded border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-7 text-center text-base font-bold tabular-nums">{qty}</span>
+                    <button
+                      onClick={() => onQuantityChange(li.id, qty + 1)}
+                      className="w-8 h-8 rounded border border-primary bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm text-muted-foreground">
+        Count items section by section. Collapse a section once you're done with that room.
+      </p>
+
+      {sections.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">This template has no sections.</p>
+      ) : sections.map(section => {
+        const isCollapsed = collapsed[section.id];
+        const secItems = section.line_items || [];
+        const counted = secItems.filter(i => i.category !== 'labor' && ((quantities[i.id] ?? i.quantity ?? 0) > 0)).length;
+        return (
+          <div key={section.id} className="border border-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggle(section.id)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 bg-muted/40 hover:bg-muted transition-colors"
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+              <span className="font-semibold text-sm text-foreground text-left">{section.name}</span>
+              <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                {counted > 0 ? `${counted} counted` : `${secItems.filter(i => i.category !== 'labor').length} items`}
+              </span>
+            </button>
+            {!isCollapsed && (
+              <div className="p-3">
+                <SectionQuantityStep {...props} section={section} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -341,11 +422,11 @@ export default function RapidEstimateWizard({ open, onOpenChange }) {
   });
 
   const sections = selectedTemplate?.sections || [];
-  // steps: 0=pick, 1..n=sections, n+1=scope, n+2=summary
-  const totalSteps = sections.length + 3;
-  const isScopeStep = step === sections.length + 1;
-  const isSummaryStep = step === sections.length + 2;
-  const currentSection = step >= 1 && step <= sections.length ? sections[step - 1] : null;
+  // steps: 0=pick template, 1=walkthrough (all sections), 2=scope, 3=summary
+  const totalSteps = 4;
+  const isWalkthroughStep = step === 1;
+  const isScopeStep = step === 2;
+  const isSummaryStep = step === 3;
 
   const handlePickTemplate = (tmpl) => {
     setSelectedTemplate(tmpl);
@@ -387,7 +468,7 @@ export default function RapidEstimateWizard({ open, onOpenChange }) {
   // the non-labor line items that actually have a quantity > 0, so zeroed-out items
   // never carry into the scope of work.
   const goNext = () => {
-    if (step === sections.length) {
+    if (isWalkthroughStep) {
       const seeded = (selectedTemplate?.sections || []).flatMap(s =>
         (s.line_items || []).filter(li =>
           li.category !== 'labor' &&
@@ -507,14 +588,15 @@ export default function RapidEstimateWizard({ open, onOpenChange }) {
 
   const getStepLabel = () => {
     if (step === 0) return 'Choose Template';
+    if (isWalkthroughStep) return 'Walkthrough';
     if (isScopeStep) return 'Scope of Work';
     if (isSummaryStep) return 'Review & Generate';
-    return `Section ${step} of ${sections.length}: ${currentSection?.name || ''}`;
+    return '';
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl w-full">
+      <DialogContent className="max-w-2xl w-full">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary" />
@@ -554,9 +636,9 @@ export default function RapidEstimateWizard({ open, onOpenChange }) {
             <TemplatePickStep templates={templates} isLoading={isLoading} onPick={handlePickTemplate} />
           )}
 
-          {currentSection && (
-            <SectionQuantityStep
-              section={currentSection}
+          {isWalkthroughStep && (
+            <WalkthroughStep
+              sections={sections}
               quantities={quantities}
               unitCosts={unitCosts}
               laborCostsPerUnit={laborCostsPerUnit}
@@ -592,7 +674,7 @@ export default function RapidEstimateWizard({ open, onOpenChange }) {
               </Button>
             ) : (
               <Button onClick={goNext} className="gap-2">
-                {step < sections.length ? 'Next Section' : isScopeStep ? 'Review' : 'Modify Scope'}
+                {isWalkthroughStep ? 'Next: Scope' : 'Review'}
                 <ChevronRight className="w-4 h-4" />
               </Button>
             )}
