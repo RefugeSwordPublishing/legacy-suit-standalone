@@ -100,41 +100,38 @@ export default function UsersPage() {
 
   const handleInvite = async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)) {
-      alert('Please enter a valid email address.');
+      toast({ title: 'Enter a valid email address', variant: 'destructive' });
       return;
     }
     setInviting(true);
-    // inviteRole is a custom_role id; resolve it to base_role + role_label (the edit dialog does the
-    // same). Fall back to treating inviteRole as a base role if the tenant has no custom roles seeded.
-    const cr = customRoles.find(r => r.id === inviteRole);
-    const baseRole = cr ? cr.base_role : inviteRole;
-    const roleLabel = cr ? cr.label : undefined;
-    await base44.users.inviteUser(inviteEmail, (baseRole === 'owner' || baseRole === 'coo') ? 'admin' : 'user');
-    // Create a UserProfile for the new user
-    const allUsers = await base44.entities.User.list();
-    const newUser = allUsers.find(u => u.email === inviteEmail);
-    if (newUser) {
-      const existing = await base44.entities.UserProfile.filter({ user_id: newUser.id });
-      if (existing.length === 0) {
-        await base44.entities.UserProfile.create({
-          user_id: newUser.id,
-          email: inviteEmail,
-          first_name: inviteFirstName.trim() || '',
-          last_name: inviteLastName.trim() || '',
-          full_name: [inviteFirstName.trim(), inviteLastName.trim()].filter(Boolean).join(' '),
-          role: baseRole,
-          ...(roleLabel ? { role_label: roleLabel } : {}),
-          ...(cr ? { custom_role_id: cr.id } : {}),
-        });
-      }
+    try {
+      // inviteRole is a custom_role id; resolve it to base_role + role_label. Fall back to treating
+      // inviteRole as a base role if the tenant has no custom roles seeded.
+      const cr = customRoles.find(r => r.id === inviteRole);
+      const baseRole = cr ? cr.base_role : inviteRole;
+      // The invite-user edge fn creates the auth user, sends the set-password email, and inserts the
+      // membership + profile (the browser can't do the admin invite, and it needs a membership row).
+      const res = await base44.functions.invoke('inviteUser', {
+        email: inviteEmail.trim(),
+        first_name: inviteFirstName.trim(),
+        last_name: inviteLastName.trim(),
+        role: baseRole,
+        role_label: cr ? cr.label : undefined,
+        custom_role_id: cr ? cr.id : undefined,
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      toast({ title: 'Invitation sent', description: `${inviteEmail} will get an email to set their password.` });
+      setInviteOpen(false);
+      setInviteEmail('');
+      setInviteFirstName('');
+      setInviteLastName('');
+      setInviteRole('');
+      queryClient.invalidateQueries({ queryKey: ['user-profiles'] });
+    } catch (e) {
+      toast({ title: 'Could not send invite', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setInviting(false);
     }
-    setInviting(false);
-    setInviteOpen(false);
-    setInviteEmail('');
-    setInviteFirstName('');
-    setInviteLastName('');
-    setInviteRole('');
-    queryClient.invalidateQueries({ queryKey: ['user-profiles'] });
   };
 
   const handleUpdateRole = async (profileId, role) => {

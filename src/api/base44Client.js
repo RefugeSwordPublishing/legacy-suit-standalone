@@ -238,6 +238,15 @@ async function invoke(name, payload = {}) {
       }
       return { data };
     }
+    if (name === 'inviteUser') {
+      const { data, error } = await supabase.functions.invoke('invite-user', { body: payload });
+      if (error) {
+        let detail = error.message;
+        try { const body = await error.context?.json?.(); if (body?.error) detail = body.error; } catch { /* ignore */ }
+        return { data: { error: detail } };
+      }
+      return { data };
+    }
     if (name === 'quickbooksReconcile') {
       const { data, error } = await supabase.functions.invoke('quickbooks-reconcile', { body: payload });
       if (error) {
