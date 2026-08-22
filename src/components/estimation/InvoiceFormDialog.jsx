@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Plus, Trash2, ExternalLink, CheckCircle2, LayoutList, Table2 } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, CheckCircle2, LayoutList, Table2, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/components/ui/use-toast';
@@ -211,6 +211,44 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   const alreadyImportedExpenses = projectExpenses.filter(e => importedExpenseIds.includes(e.id));
   const expenseLabel = (e) => `${e.vendor || e.description || 'Expense'}${e.total_amount ? ` (${fmt(e.total_amount)})` : ''}`;
 
+  // Progress-billing context: what this project has ALREADY been invoiced (prior non-void invoices,
+  // not this one), overall and by category — so an itemized invoice following an SOV deposit doesn't
+  // silently double-bill. SOV invoices contribute each category's current_amount; itemized invoices
+  // contribute each line's total.
+  const priorInvoices = allInvoices.filter(i => i.project_id === projectId && i.status !== 'void' && i.id !== invoice?.id);
+  const billedToDate = priorInvoices.reduce((s, i) => s + (Number(i.grand_total) || 0), 0);
+  const billedByCategory = {};
+  for (const inv of priorInvoices) {
+    if (inv.billing_mode === 'schedule_of_values') {
+      for (const e of (inv.sov_entries || [])) {
+        const cat = e.category === 'gc_fee' ? 'other' : (e.category || 'other');
+        billedByCategory[cat] = (billedByCategory[cat] || 0) + (Number(e.current_amount) || 0);
+      }
+      for (const e of (inv.co_sov_entries || [])) {
+        const cat = e.category === 'gc_fee' ? 'other' : (e.category || 'other');
+        billedByCategory[cat] = (billedByCategory[cat] || 0) + ((Number(e.current_pct) || 0) / 100) * (Number(e.category_total) || 0);
+      }
+    } else {
+      for (const li of (inv.line_items || [])) {
+        const cat = li.category === 'gc_fee' ? 'other' : (li.category || 'other');
+        billedByCategory[cat] = (billedByCategory[cat] || 0) + (Number(li.line_total) || 0);
+      }
+    }
+  }
+  // Contract totals per category from the linked estimate, for the % context.
+  const contractByCategory = {};
+  for (const s of (linkedEstimate?.sections || [])) {
+    for (const li of (s.line_items || [])) {
+      const cat = li.category || 'other';
+      contractByCategory[cat] = (contractByCategory[cat] || 0) + (Number(li.line_total) || 0);
+    }
+  }
+  if (linkedEstimate?.gc_fee_enabled) {
+    const lineSum = Object.values(contractByCategory).reduce((a, b) => a + b, 0);
+    contractByCategory.other = (contractByCategory.other || 0) + lineSum * ((linkedEstimate.gc_fee_pct || 0) / 100);
+  }
+  const contractTotal = Number(linkedEstimate?.grand_total) || Object.values(contractByCategory).reduce((a, b) => a + b, 0);
+
   // Line item operations
   const updateLine = (id, field, value) => {
     setLineItems(prev => prev.map(item => {
@@ -346,6 +384,29 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
 
   const { subtotal, totalMarkup, grand_total } = calcTotals(lineItems);
 
+  // Line-level progress billing: once a project has prior billing, each itemized line shows its
+  // category's already-billed % and you bill an additional % or $ per line as work completes. Off
+  // for a project's first invoice (no priors), so a normal itemized invoice bills full lines.
+  const progressMode = billingMode === 'line_items' && priorInvoices.length > 0;
+  const categoryPriorPct = (cat) => {
+    const c = cat === 'gc_fee' ? 'other' : (cat || 'other');
+    const contract = contractByCategory[c] || 0;
+    return contract > 0 ? Math.min(100, ((billedByCategory[c] || 0) / contract) * 100) : 0;
+  };
+  const progressTotal = round2(lineItems.reduce((s, i) => s + (Number(i.bill_amount) || 0), 0));
+  // Entering a % sets the $ (of the line's full contract value), and vice-versa; bill_amount is canonical.
+  const setBillPct = (id, pct) => setLineItems(prev => prev.map(it => {
+    if (it.id !== id) return it;
+    const p = Math.max(0, Math.min(100, parseFloat(pct) || 0));
+    return { ...it, bill_pct: p, bill_amount: round2((p / 100) * calcLineTotal(it)) };
+  }));
+  const setBillAmount = (id, amt) => setLineItems(prev => prev.map(it => {
+    if (it.id !== id) return it;
+    const contract = calcLineTotal(it);
+    const a = round2(Math.max(0, parseFloat(amt) || 0));
+    return { ...it, bill_amount: a, bill_pct: contract > 0 ? Math.round((a / contract) * 1000) / 10 : 0 };
+  }));
+
   // Approved client change orders for this project
   const projectClientCOs = clientChangeOrders.filter(co => co.project_id === projectId && co.status === 'approved');
 
@@ -375,8 +436,21 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
 
   const buildPayload = (status) => {
     const isSov = billingMode === 'schedule_of_values';
-    const effectiveLineItems = isSov ? buildSOVLineItems() : lineItems.map(i => ({ ...i, line_total: round2(calcLineTotal(i)) }));
-    const effectiveTotal = isSov ? sovTotal : grand_total;
+    // Progress lines store line_total = the amount billed THIS invoice, plus contract_amount/bill_pct/
+    // prior_pct for context; only lines with a billed amount are sent. Non-progress bills full lines.
+    const itemizedLines = progressMode
+      ? lineItems
+          .map(i => ({
+            ...i,
+            contract_amount: round2(calcLineTotal(i)),
+            bill_pct: round2(Number(i.bill_pct) || 0),
+            prior_pct: round2(categoryPriorPct(i.category)),
+            line_total: round2(Number(i.bill_amount) || 0),
+          }))
+          .filter(i => (i.line_total || 0) > 0)
+      : lineItems.map(i => ({ ...i, line_total: round2(calcLineTotal(i)) }));
+    const effectiveLineItems = isSov ? buildSOVLineItems() : itemizedLines;
+    const effectiveTotal = isSov ? sovTotal : (progressMode ? progressTotal : grand_total);
     return {
       invoice_number: invoiceNumber,
       client_id: clientId,
@@ -395,8 +469,8 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
       co_sov_entries: isSov ? coSovEntries : [],
       imported_bid_ids: importedBidIds,
       imported_expense_ids: importedExpenseIds,
-      subtotal: isSov ? sovTotal : subtotal,
-      total_markup: isSov ? 0 : totalMarkup,
+      subtotal: isSov ? sovTotal : (progressMode ? progressTotal : subtotal),
+      total_markup: isSov ? 0 : (progressMode ? 0 : totalMarkup),
       grand_total: effectiveTotal,
     };
   };
@@ -520,6 +594,40 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
               </Select>
             </div>
           </div>
+
+          {/* Billed to date — awareness so an itemized invoice after an SOV deposit doesn't double-bill */}
+          {projectId && priorInvoices.length > 0 && (
+            <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4" /> Billed to date on this project
+                </span>
+                <span className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                  {fmt(billedToDate)}{contractTotal > 0 ? ` of ${fmt(contractTotal)} (${Math.round((billedToDate / contractTotal) * 100)}%)` : ''}
+                </span>
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
+                {priorInvoices.length} prior invoice{priorInvoices.length > 1 ? 's' : ''}. This invoice adds to the total{contractTotal > 0 ? ' — avoid billing past the contract' : ''}.
+              </p>
+              {Object.keys(billedByCategory).length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {['materials', 'labor', 'subcontractor', 'other'].filter(c => (billedByCategory[c] || 0) > 0 || (contractByCategory[c] || 0) > 0).map(cat => {
+                    const billed = billedByCategory[cat] || 0;
+                    const contract = contractByCategory[cat] || 0;
+                    const pct = contract > 0 ? Math.round((billed / contract) * 100) : null;
+                    return (
+                      <div key={cat} className="bg-white/60 dark:bg-black/20 rounded px-2 py-1.5">
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400">{CAT_LABELS[cat] || cat}</div>
+                        <div className="text-xs font-semibold text-amber-900 dark:text-amber-200 whitespace-nowrap">
+                          {fmt(billed)}{pct !== null ? ` · ${pct}%` : ''}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Import section */}
           {projectId && (
@@ -721,9 +829,41 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                           <Input type="number" min="0" step="0.1" value={item.markup_pct} onChange={e => updateLine(item.id, 'markup_pct', parseFloat(e.target.value) || 0)} className="h-8 text-sm" />
                         </div>
                       </div>
-                      <div className="text-right text-sm font-semibold text-foreground">
-                        Line Total: {fmt(calcLineTotal(item))}
-                      </div>
+                      {progressMode ? (() => {
+                        const contract = calcLineTotal(item);
+                        const prior = Math.round(categoryPriorPct(item.category));
+                        const toDate = Math.round(prior + (Number(item.bill_pct) || 0));
+                        return (
+                          <div className="rounded-md bg-muted/40 border border-border p-2.5 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Contract: <span className="font-semibold text-foreground">{fmt(contract)}</span></span>
+                              <span className="text-muted-foreground">{prior}% billed · {CAT_LABELS[item.category] || item.category}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Bill this invoice (%)</Label>
+                                <Input type="number" min="0" max="100" step="any" value={item.bill_pct ?? 0}
+                                  onChange={e => setBillPct(item.id, e.target.value)} className="h-8 text-sm" placeholder="0" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Bill this invoice ($)</Label>
+                                <Input type="number" min="0" step="0.01" value={item.bill_amount ?? 0}
+                                  onChange={e => setBillAmount(item.id, e.target.value)} className="h-8 text-sm" placeholder="0.00" />
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className={toDate > 100 ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
+                                To date: {toDate}%{toDate > 100 ? ' (over contract)' : ''}
+                              </span>
+                              <span className="font-semibold text-foreground">Billing: {fmt(item.bill_amount || 0)}</span>
+                            </div>
+                          </div>
+                        );
+                      })() : (
+                        <div className="text-right text-sm font-semibold text-foreground">
+                          Line Total: {fmt(calcLineTotal(item))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   <Button size="sm" variant="outline" onClick={addManualLine} className="w-full">
@@ -734,11 +874,19 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
 
               {/* Totals */}
               <div className="bg-muted/30 rounded-lg p-4 space-y-1.5 text-sm">
-                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-                <div className="flex justify-between text-muted-foreground"><span>Markup</span><span>{fmt(totalMarkup)}</span></div>
-                <div className="flex justify-between font-bold text-base text-foreground border-t border-border pt-2 mt-1">
-                  <span>Total</span><span>{fmt(grand_total)}</span>
-                </div>
+                {progressMode ? (
+                  <div className="flex justify-between font-bold text-base text-foreground">
+                    <span>Billing this invoice</span><span>{fmt(progressTotal)}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Markup</span><span>{fmt(totalMarkup)}</span></div>
+                    <div className="flex justify-between font-bold text-base text-foreground border-t border-border pt-2 mt-1">
+                      <span>Total</span><span>{fmt(grand_total)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
