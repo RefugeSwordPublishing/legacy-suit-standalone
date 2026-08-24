@@ -119,6 +119,32 @@ export default function BidRequestFormDialog({ open, onOpenChange, bidRequest = 
     set('file_names', form.file_names.filter((_, i) => i !== idx));
   };
 
+  // Email each selected sub-contractor an invitation with a link to submit their bid. Best-effort
+  // per contractor (send-email edge fn -> Resend). Replaces the old subContractorBid stub, which was
+  // never wired in the adapter, so bid-request emails silently never sent.
+  const notifySubs = async (bidReqId, subIds, { updated = false } = {}) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.guildwright.app';
+    const link = `${origin}/submit-bid/${bidReqId}`;
+    const kind = isEstimate ? 'estimate' : 'bid';
+    const scopeList = (form.scope_of_work || []).map(s => `<li>${s.title}</li>`).join('');
+    const selected = subs.filter(s => (subIds || []).includes(s.id) && s.email);
+    for (const sub of selected) {
+      const greeting = sub.contact_name || sub.name || 'there';
+      const subject = updated
+        ? `Updated ${kind} request: ${form.title || 'Project'}`
+        : `${isEstimate ? 'Estimate' : 'Bid'} request: ${form.title || 'New project'}`;
+      const html = `<p>Hi ${greeting},</p>`
+        + `<p>You've been invited to submit ${isEstimate ? 'an estimate' : 'a bid'} for <strong>${form.title || 'a project'}</strong>${form.project_address ? ` at ${form.project_address}` : ''}.</p>`
+        + (form.description ? `<p>${form.description}</p>` : '')
+        + (scopeList ? `<p><strong>Scope:</strong></p><ul>${scopeList}</ul>` : '')
+        + `<p><a href="${link}">Submit your ${kind} here</a></p>`
+        + `<p>Or paste this link into your browser: ${link}</p>`;
+      try {
+        await base44.functions.invoke('sendEmail', { to: sub.email, subject, html });
+      } catch { /* best-effort; a failed email shouldn't block the request */ }
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -131,17 +157,12 @@ export default function BidRequestFormDialog({ open, onOpenChange, bidRequest = 
         await base44.entities.BidRequest.update(bidRequest.id, data);
         const wasSent = ['sent', 'reviewing', 'awarded'].includes(bidRequest.status);
         if (wasSent && (bidRequest.sub_contractor_ids || []).length > 0) {
-          await base44.functions.invoke('subContractorBid', {
-            mode: 'notify_bid_updated',
-            bidRequestId: bidRequest.id,
-            updatedData: data,
-          });
+          await notifySubs(bidRequest.id, bidRequest.sub_contractor_ids, { updated: true });
         }
       } else {
         const created = await base44.entities.BidRequest.create(data);
         if ((form.sub_contractor_ids || []).length > 0 && created?.id) {
-          const mode = isEstimate ? 'send_estimate_request' : 'send_bid_request';
-          await base44.functions.invoke('subContractorBid', { mode, bidRequestId: created.id });
+          await notifySubs(created.id, form.sub_contractor_ids);
           await base44.entities.BidRequest.update(created.id, { status: 'sent' });
         }
       }

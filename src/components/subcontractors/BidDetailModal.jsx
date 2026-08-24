@@ -66,9 +66,26 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
 
   const handleSendBids = async () => {
     setSending(true);
-    const mode = isEstimate ? 'send_estimate_request' : 'send_bid_request';
-    await base44.functions.invoke('subContractorBid', { mode, bidRequestId: bidRequest.id });
-    setSending(false);
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.guildwright.app';
+      const link = `${origin}/submit-bid/${bidRequest.id}`;
+      const kind = isEstimate ? 'estimate' : 'bid';
+      const scopeList = (br?.scope_of_work || []).map(s => `<li>${s.title}</li>`).join('');
+      for (const sub of invitedSubs.filter(s => s.email)) {
+        const greeting = sub.contact_name || sub.name || 'there';
+        const html = `<p>Hi ${greeting},</p>`
+          + `<p>You've been invited to submit ${isEstimate ? 'an estimate' : 'a bid'} for <strong>${br?.title || 'a project'}</strong>${br?.project_address ? ` at ${br.project_address}` : ''}.</p>`
+          + (br?.description ? `<p>${br.description}</p>` : '')
+          + (scopeList ? `<p><strong>Scope:</strong></p><ul>${scopeList}</ul>` : '')
+          + `<p><a href="${link}">Submit your ${kind} here</a></p><p>Or paste this link: ${link}</p>`;
+        try {
+          await base44.functions.invoke('sendEmail', { to: sub.email, subject: `${isEstimate ? 'Estimate' : 'Bid'} request: ${br?.title || 'Project'}`, html });
+        } catch { /* best-effort per contractor */ }
+      }
+      await base44.entities.BidRequest.update(bidRequest.id, { status: 'sent' });
+    } finally {
+      setSending(false);
+    }
     toast.success(isEstimate ? 'Estimate sent for approval!' : 'Bid requests sent!');
     onRefresh();
     qc.invalidateQueries({ queryKey: ['bid-requests'] });

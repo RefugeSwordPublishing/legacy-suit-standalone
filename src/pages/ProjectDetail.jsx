@@ -66,11 +66,16 @@ export default function ProjectDetail() {
   const refreshFiles = () => queryClient.invalidateQueries({ queryKey: ['project_files', projectId] });
 
   const handleDelete = async () => {
-    for (const m of materials) await base44.entities.Material.delete(m.id);
-    for (const t of tasks) await base44.entities.Task.delete(t.id);
-    await base44.entities.Project.delete(projectId);
-    queryClient.invalidateQueries({ queryKey: ['projects'] });
-    navigate('/');
+    try {
+      // Child records cascade (tasks, materials, files, schedule, goals, requests) or unlink
+      // (estimates, invoices, expenses, change orders) via the FK on-delete rules, so deleting the
+      // project row is enough. Previously this failed silently when the project had any such data.
+      await base44.entities.Project.delete(projectId);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      navigate('/');
+    } catch (e) {
+      alert(`Could not delete this project: ${e?.message || 'please try again.'}`);
+    }
   };
 
   if (isLoading) {
@@ -212,7 +217,7 @@ export default function ProjectDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete project?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the project, all its tasks and materials. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>This permanently deletes the project and its tasks, materials, schedule, and files. Estimates, invoices, and expenses are kept but unlinked from the project. This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Camera, Upload, ArrowRight, Circle, Minus, RotateCcw, Check, Wrench } from 'lucide-react';
+import { taskAssignees } from '@/lib/taskAssignees';
+import AssigneeSelect from '@/components/tasks/AssigneeSelect';
 
 const TOOLS = [
   { id: 'arrow', label: 'Arrow', icon: ArrowRight },
@@ -26,7 +28,7 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
   const [taskMode, setTaskMode] = useState('new'); // 'new' | 'existing'
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [newTitle, setNewTitle] = useState('');
-  const [assignTo, setAssignTo] = useState('');
+  const [assignees, setAssignees] = useState([]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [annotatedImageUrl, setAnnotatedImageUrl] = useState(null);
@@ -41,7 +43,7 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
       setTimeout(() => {
         setStep(1); setPhoto(null); setPhotoFile(null); setAnnotations([]);
         setDrawing(null); setTaskMode('new'); setSelectedTaskId('');
-        setNewTitle(''); setAssignTo(''); setNotes(''); setAnnotatedImageUrl(null);
+        setNewTitle(''); setAssignees([]); setNotes(''); setAnnotatedImageUrl(null);
         setTool('arrow'); setColor('#ef4444');
       }, 200);
     }
@@ -182,7 +184,8 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
       await base44.entities.Task.create({
         project_id: projectId,
         title: newTitle,
-        assigned_to: assignTo || undefined,
+        assignees,
+        assigned_to: assignees[0] || undefined,
         priority: 'high',
         status: 'pending',
         notes: noteText,
@@ -199,15 +202,20 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
           uploaded_by: 'Fix It',
         });
       }
-      if (assignTo) await sendInAppNotification(assignTo, newTitle, true);
+      for (const name of assignees) await sendInAppNotification(name, newTitle, true);
     } else {
       const existingTask = tasks.find(t => t.id === selectedTaskId);
       if (existingTask) {
         const existingNotes = existingTask.notes ? existingTask.notes + '\n\n' + noteText : noteText;
         const existingPhotos = existingTask.photo_urls || [];
+        // Reassign the same people by default; the Fix-it picker (pre-filled with the task's current
+        // assignees) can override to specific people.
+        const finalAssignees = assignees.length ? assignees : taskAssignees(existingTask);
         await base44.entities.Task.update(selectedTaskId, {
           status: 'pending',
           priority: 'high',
+          assignees: finalAssignees,
+          assigned_to: finalAssignees[0] || '',
           notes: existingNotes || undefined,
           photo_urls: imageUrl ? [...existingPhotos, imageUrl] : existingPhotos,
         });
@@ -223,10 +231,10 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
           });
         }
         if (existingTask.is_sub_contractor_task) {
-        await sendSubContractorFixItEmail(existingTask, imageUrl);
-      } else if (existingTask.assigned_to) {
-        await sendInAppNotification(existingTask.assigned_to, existingTask.title, false);
-      }
+          await sendSubContractorFixItEmail(existingTask, imageUrl);
+        } else {
+          for (const name of finalAssignees) await sendInAppNotification(name, existingTask.title, false);
+        }
       }
     }
 
@@ -408,31 +416,33 @@ export default function FixItDialog({ open, onOpenChange, projectId, projectName
                 </div>
                 <div>
                   <Label>Assign To</Label>
-                  <Select value={assignTo || 'unassigned'} onValueChange={v => setAssignTo(v === 'unassigned' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                  <AssigneeSelect value={assignees} onChange={setAssignees} users={allUsers.filter(u => u.role !== 'client')} />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <Label>Select Task</Label>
+                  <Select
+                    value={selectedTaskId}
+                    onValueChange={id => { setSelectedTaskId(id); const t = tasks.find(x => x.id === id); setAssignees(t ? taskAssignees(t) : []); }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Choose a task…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {allUsers.map(u => {
-                        const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email;
-                        return (
-                        <SelectItem key={u.id} value={fullName}>{fullName}</SelectItem>
-                        );
+                      {tasks.map(t => {
+                        const a = taskAssignees(t);
+                        return <SelectItem key={t.id} value={t.id}>{t.title}{a.length ? `, ${a.join(', ')}` : ''}{t.status === 'completed' ? ' ✓' : ''}</SelectItem>;
                       })}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-            ) : (
-              <div>
-                <Label>Select Task</Label>
-                <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
-                  <SelectTrigger><SelectValue placeholder="Choose a task…" /></SelectTrigger>
-                  <SelectContent>
-                    {tasks.map(t => (
-                      <SelectItem key={t.id} value={t.id}>{t.title}{t.assigned_to ? `, ${t.assigned_to}` : ''}{t.status === 'completed' ? ' ✓' : ''}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {selectedTaskId && (
+                  <div>
+                    <Label>Assign To</Label>
+                    <AssigneeSelect value={assignees} onChange={setAssignees} users={allUsers.filter(u => u.role !== 'client')} />
+                    <p className="text-[11px] text-muted-foreground mt-1">Defaults to the task's current people; change it to reassign.</p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ClipboardList, Users, LogOut, ListTodo, Settings, Bell, ChevronUp, Globe, Inbox, MessageSquare, ChevronRight, CalendarOff, BarChart2, ShieldCheck, Target, Clock, FileText, Building2, Hash, Receipt, Link2, DollarSign, Moon, Sun, KeyRound, Bug, Tags, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Package, ClipboardList, Users, LogOut, ListTodo, Settings, Bell, ChevronUp, Globe, Inbox, MessageSquare, ChevronRight, CalendarOff, BarChart2, ShieldCheck, Target, Clock, FileText, Building2, Hash, Receipt, Link2, DollarSign, Moon, Sun, KeyRound, Bug, Tags, LifeBuoy, Search, CalendarDays } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useFeaturePermission } from '@/lib/usePermissions';
 import { useTheme } from '@/lib/ThemeContext';
 import { base44 } from '@/api/base44Client';
@@ -9,10 +10,11 @@ import { canViewMaterialsDashboard, canManageUsers, canManageTemplates, isClient
 import { canManageProjects } from '@/lib/permissions';
 import NotificationBell, { useUnreadCount } from './NotificationBell';
 import ProjectsMenu from './ProjectsMenu';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import TimeOffRequestDialog from '@/components/time-off/TimeOffRequestDialog';
 import ReportIssueDialog from '@/components/layout/ReportIssueButton';
+import QuickSearch from '@/components/layout/QuickSearch';
 
 const HIGH_ROLES = ['owner', 'coo', 'admin'];
 
@@ -107,6 +109,71 @@ export default function AppLayout() {
 
   const unreadCount = useUnreadCount();
 
+  // Quick-search command palette (⌘/Ctrl-K, sidebar box, mobile bar). Destinations are filtered to
+  // what this user can reach, using the same gates as the nav.
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(o => !o); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const owner = currentUser?.role === 'owner';
+  const ownerAdmin = owner || currentUser?.role === 'admin';
+  const navDestinations = (clientOnly
+    ? [{ label: 'Client Portal', path: '/client-portal', icon: Globe, keywords: ['home', 'portal'] }]
+    : [
+        { label: 'Dashboard', path: '/', icon: LayoutDashboard, keywords: ['home', 'overview', 'clock in', 'clock out', 'time clock', 'punch'] },
+        { label: 'Projects', path: '/projects', icon: ClipboardList, keywords: ['jobs', 'job sites', 'sites'] },
+        { label: 'Tasks', path: '/tasks', icon: ListTodo, keywords: ['to do', 'todo'], show: hasField },
+        { label: 'Timecards', path: '/timecards', icon: Clock, keywords: ['time', 'hours', 'clock'] },
+        { label: 'Daily Goals', path: '/daily-goals', icon: Target, keywords: ['goals'], show: hasField },
+        { label: 'Crew Schedule', path: '/crew-schedule', icon: CalendarDays, keywords: ['schedule', 'calendar', 'crew'], show: hasField },
+        { label: 'Team Chat', path: '/chat', icon: MessageSquare, keywords: ['chat', 'messages', 'team'], show: hasField },
+        { label: 'Materials', path: '/materials', icon: Package, keywords: ['supplies', 'inventory'], show: canSeeMaterials },
+        { label: 'Estimates', path: '/estimates', icon: FileText, keywords: ['bids', 'quotes'], show: hasField && !isSiteManager && canReadEstimates },
+        { label: 'Invoices', path: '/invoices', icon: Receipt, keywords: ['billing'], show: isPro && !isSiteManager && canReadInvoices },
+        { label: 'Expenses', path: '/expenses', icon: DollarSign, keywords: ['receipts', 'costs', 'spending'], show: isPro && !isSiteManager && canReadExpenses },
+        { label: 'Clients', path: '/clients', icon: Building2, keywords: ['customers'], show: !isSiteManager && canReadClients },
+        { label: 'Subcontractors', path: '/sub-contractors', icon: Users, keywords: ['subs', 'subcontractor'], show: isPro && canReadSubcontractors },
+        { label: 'Cost Codes', path: '/cost-codes', icon: Hash, keywords: [], show: isPro && isHighRole },
+        { label: 'Reports', path: '/reports', icon: BarChart2, keywords: ['analytics', 'job costing', 'profit'], show: isPro && (isHighRole || canReadReports) },
+        { label: 'Client Requests', path: '/client-requests', icon: Inbox, keywords: ['requests'], show: canReviewRequests },
+        { label: 'Phase Approvals', path: '/phase-approvals', icon: ShieldCheck, keywords: ['approvals'], show: isHighRole },
+        { label: 'Notifications', path: '/notifications', icon: Bell, keywords: ['alerts'] },
+        (isHighRole
+          ? { label: 'Time Off Requests', path: '/time-off', icon: CalendarOff, keywords: ['vacation', 'pto', 'days off', 'time off'] }
+          : { label: 'Request Time Off', action: () => setShowTimeOff(true), icon: CalendarOff, keywords: ['vacation', 'pto', 'days off', 'time off'] }),
+        { label: 'Timecard Report', path: '/timecard-report', icon: FileText, keywords: ['payroll', 'hours'], show: isHighRole },
+        { label: 'Templates', path: '/templates', icon: ClipboardList, keywords: ['estimate templates'], show: hasField && canManageTemplates(currentUser) },
+        { label: 'Users', path: '/users', icon: Users, keywords: ['team', 'staff', 'employees'], show: canManageUsers(currentUser) },
+        { label: 'Roles', path: '/roles', icon: ShieldCheck, keywords: ['permissions'], show: ownerAdmin },
+        { label: 'Permissions', path: '/permissions', icon: KeyRound, keywords: ['access'], show: owner },
+        { label: 'QuickBooks Integration', path: '/qbo-settings', icon: Link2, keywords: ['qbo', 'quickbooks'], show: isPro && ownerAdmin },
+        { label: 'Xero Integration', path: '/xero-settings', icon: Link2, keywords: ['xero'], show: isPro && ownerAdmin },
+        { label: 'Invoice Numbering', path: '/invoice-settings', icon: Receipt, keywords: ['invoice number'], show: isPro && ownerAdmin },
+        { label: 'Expense Categories', path: '/expense-categories', icon: Tags, keywords: [], show: isPro && ownerAdmin },
+        { label: 'Settings', path: '/settings', icon: Settings, keywords: ['preferences', 'account'] },
+      ]).filter(d => d.show === undefined || d.show);
+  // Entity search: projects are deep-linkable (/projects/:id), so include them by name + address.
+  const { data: searchProjects = [] } = useQuery({
+    queryKey: ['projects-quick-search'],
+    queryFn: () => base44.entities.Project.list('-created_date', 500),
+    enabled: !clientOnly,
+    staleTime: 60000,
+  });
+  const searchDestinations = clientOnly ? navDestinations : [
+    ...navDestinations,
+    ...searchProjects.map(p => ({
+      label: p.name || 'Untitled project',
+      path: `/projects/${p.id}`,
+      icon: ClipboardList,
+      hint: p.address || p.client_name || undefined,
+      keywords: [p.address, p.client_name, 'project', 'job'].filter(Boolean),
+    })),
+  ];
+
   const handleLogout = () => {
     logout();
   };
@@ -121,6 +188,16 @@ export default function AppLayout() {
             <h1 style={{ fontFamily: 'var(--font-butler)', fontSize: 17, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.2 }} className="text-sidebar-foreground">GuildWright</h1>
             <p className="text-xs text-sidebar-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-highway)' }}>One System. Every Job.</p>
           </div>
+        </div>
+        <div className="px-3 pt-3">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent/25 text-sidebar-foreground/60 hover:text-white hover:bg-sidebar-accent/50 text-sm transition-all"
+          >
+            <Search className="w-4 h-4 shrink-0" />
+            <span className="flex-1 text-left">Search…</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-black/25 border border-white/10">⌘K</kbd>
+          </button>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
@@ -301,8 +378,16 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* Mobile Bottom Nav */}
-      <div className="no-print md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar text-white border-t border-sidebar-border px-2 py-2 flex items-center justify-around">
+      {/* Mobile bottom bar: full-width search strip stacked directly on top of the nav (no overlap) */}
+      <div className="no-print md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar text-white border-t border-sidebar-border">
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="w-full flex items-center gap-2 px-4 py-2.5 border-b border-sidebar-border/60 text-sidebar-foreground/60 hover:text-white text-sm"
+        >
+          <Search className="w-4 h-4 shrink-0" />
+          <span className="flex-1 text-left">Search…</span>
+        </button>
+        <div className="px-2 py-2 flex items-center justify-around">
         {navItems.map((item) => {
           if (item.path === '/') {
             const isDashActive = location.pathname === '/' || location.pathname === '/notifications';
@@ -449,10 +534,11 @@ export default function AppLayout() {
             <span className="text-xs">Settings</span>
           </Link>
         )}
+        </div>
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto md:pt-0 pb-20 md:pb-0">
+      <main className="flex-1 overflow-auto md:pt-0 pb-32 md:pb-0">
         {currentUser?.on_trial && (
           <div className="no-print bg-accent/10 border-b border-accent/20 px-4 py-2 text-sm flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
             <span className="text-foreground font-medium">
@@ -464,6 +550,7 @@ export default function AppLayout() {
         <Outlet />
       </main>
 
+      <QuickSearch open={searchOpen} onOpenChange={setSearchOpen} destinations={searchDestinations} />
       <TimeOffRequestDialog open={showTimeOff} onOpenChange={setShowTimeOff} />
 
       <ReportIssueDialog open={showReportIssue} onOpenChange={setShowReportIssue} />

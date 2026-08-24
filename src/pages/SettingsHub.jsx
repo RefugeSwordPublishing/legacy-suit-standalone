@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { Bell, Receipt, Link2, Hash, ClipboardList, Tags, Users, KeyRound, ShieldCheck, Settings as SettingsIcon, LifeBuoy, CreditCard, Loader2, CheckCircle2, BookOpen, BarChart2, FileText, CalendarOff, Moon, Sun, LogOut } from 'lucide-react';
 import ReportIssueDialog from '@/components/layout/ReportIssueButton';
+import TimeOffRequestDialog from '@/components/time-off/TimeOffRequestDialog';
 import ExampleDataCard from '@/components/onboarding/ExampleDataCard';
 
 const MODULES = [
@@ -58,6 +59,7 @@ export default function SettingsHub() {
   const role = currentUser?.role;
   const allowed = (item) => !item.roles || item.roles.includes(role);
   const [showReportIssue, setShowReportIssue] = useState(false);
+  const [showTimeOff, setShowTimeOff] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
   const isHighRole = HIGH_ROLES.includes(role);
 
@@ -67,7 +69,9 @@ export default function SettingsHub() {
   const mobileNavItems = [
     (proNav && (isHighRole || canReadReports)) && { path: '/reports', label: 'Reports', icon: BarChart2, desc: 'Job costing, hours, and financial reports' },
     isHighRole && { path: '/timecard-report', label: 'Timecard Report', icon: FileText, desc: 'Approved hours and payroll export' },
-    { path: '/time-off', label: isHighRole ? 'Time Off Requests' : 'Request Time Off', icon: CalendarOff, desc: isHighRole ? 'Review and approve crew time off' : 'Request days off' },
+    isHighRole
+      ? { path: '/time-off', label: 'Time Off Requests', icon: CalendarOff, desc: 'Review and approve crew time off' }
+      : { action: () => setShowTimeOff(true), label: 'Request Time Off', icon: CalendarOff, desc: 'Request days off' },
   ].filter(Boolean);
   const isPro = currentUser?.is_pro === true;
   const hasField = currentUser?.has_field === true;
@@ -134,19 +138,23 @@ export default function SettingsHub() {
       <div className="md:hidden">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Reports &amp; Time</h2>
         <div className="grid grid-cols-1 gap-3">
-          {mobileNavItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="flex items-start gap-3 p-4 rounded-lg border border-border bg-card hover:border-accent hover:shadow-sm transition-all"
-            >
-              <div className="mt-0.5 rounded-lg bg-accent/15 p-2 text-accent shrink-0"><item.icon className="w-5 h-5" /></div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-              </div>
-            </Link>
-          ))}
+          {mobileNavItems.map(item => {
+            const cls = 'flex items-start gap-3 p-4 rounded-lg border border-border bg-card hover:border-accent hover:shadow-sm transition-all';
+            const inner = (
+              <>
+                <div className="mt-0.5 rounded-lg bg-accent/15 p-2 text-accent shrink-0"><item.icon className="w-5 h-5" /></div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                </div>
+              </>
+            );
+            return item.action ? (
+              <button key={item.label} onClick={item.action} className={`${cls} text-left w-full`}>{inner}</button>
+            ) : (
+              <Link key={item.path} to={item.path} className={cls}>{inner}</Link>
+            );
+          })}
         </div>
       </div>
 
@@ -259,6 +267,7 @@ export default function SettingsHub() {
       </div>
 
       <ReportIssueDialog open={showReportIssue} onOpenChange={setShowReportIssue} />
+      <TimeOffRequestDialog open={showTimeOff} onOpenChange={setShowTimeOff} />
     </div>
   );
 }

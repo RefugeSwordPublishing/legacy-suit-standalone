@@ -18,6 +18,8 @@ import TaskPhotoUpload from '@/components/tasks/TaskPhotoUpload';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import ApplyTemplateDialog from './ApplyTemplateDialog';
+import { taskAssignees, userFullName } from '@/lib/taskAssignees';
+import AssigneeSelect from '@/components/tasks/AssigneeSelect';
 
 const priorityConfig = {
   low: { label: 'Low', className: 'bg-slate-100 text-slate-600' },
@@ -26,7 +28,7 @@ const priorityConfig = {
   urgent: { label: 'Urgent', className: 'bg-red-100 text-red-700' },
 };
 
-const emptyTask = { title: '', assigned_to: '', priority: 'medium', due_date: '', notes: '', photo_urls: [] };
+const emptyTask = { title: '', assigned_to: '', assignees: [], priority: 'medium', due_date: '', notes: '', photo_urls: [] };
 const emptyMaterial = { name: '', quantity: '', unit: '', notes: '' };
 
 const PHASES = ['phase_1', 'phase_2', 'phase_3', 'phase_4', 'phase_5', 'phase_6'];
@@ -88,14 +90,15 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
 
   const openEdit = (task) => {
     setEditingTask(task);
-    setEditForm({ title: task.title, assigned_to: task.assigned_to || '', priority: task.priority, due_date: task.due_date || '', notes: task.notes || '', photo_urls: task.photo_urls || [] });
+    setEditForm({ title: task.title, assignees: taskAssignees(task), priority: task.priority, due_date: task.due_date || '', notes: task.notes || '', photo_urls: task.photo_urls || [] });
     setEditSubtasks((task.subtasks || []).map(s => ({ ...s })));
   };
 
   const handleEditSave = async () => {
     setSaving(true);
     try {
-      await base44.entities.Task.update(editingTask.id, { ...editForm, subtasks: editSubtasks });
+      const assignees = editForm.assignees || [];
+      await base44.entities.Task.update(editingTask.id, { ...editForm, assignees, assigned_to: assignees[0] || '', subtasks: editSubtasks });
       setEditingTask(null);
       setEditSubtasks([]);
       setNewEditSubtask('');
@@ -119,7 +122,8 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
     try {
     const taskSubtasks = subtasks.map((s, i) => ({ id: String(i), title: s.title, assigned_to: s.assigned_to || '', completed: false }));
     const targetPhase = isHighRole ? (addPhase === 'all' ? undefined : addPhase) : currentPhase;
-    await base44.entities.Task.create({ ...form, project_id: projectId, status: 'pending', subtasks: taskSubtasks, photo_urls: form.photo_urls || [], phase: targetPhase });
+    const assignees = form.assignees || [];
+    await base44.entities.Task.create({ ...form, assignees, assigned_to: assignees[0] || '', project_id: projectId, status: 'pending', subtasks: taskSubtasks, photo_urls: form.photo_urls || [], phase: targetPhase });
     const validMaterials = taskMaterials.filter(m => m.name.trim());
     for (const mat of validMaterials) {
       await base44.entities.Material.create({
@@ -132,12 +136,9 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
         status: 'needed',
       });
     }
-    // Notify assigned user if they have task notifications enabled
-    if (form.assigned_to) {
-      const assignedProfile = allUsers.find(u => {
-        const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.full_name || u.email;
-        return fullName === form.assigned_to;
-      });
+    // Notify every assigned user who has task notifications enabled.
+    for (const name of assignees) {
+      const assignedProfile = allUsers.find(u => (userFullName(u) === name) || (u.full_name === name));
       if (assignedProfile?.notify_task_assigned && assignedProfile.user_id) {
         await base44.entities.Notification.create({
           user_id: assignedProfile.user_id,
@@ -180,12 +181,12 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
   // Build per-phase task lists
   const getPhaseTasksFiltered = (ph) => {
     let phaseTasks = tasks.filter(t => t.phase === ph);
-    if (filterAssignee !== 'all') phaseTasks = phaseTasks.filter(t => t.assigned_to === filterAssignee);
+    if (filterAssignee !== 'all') phaseTasks = phaseTasks.filter(t => taskAssignees(t).includes(filterAssignee));
     return phaseTasks;
   };
 
   const unphasedTasks = tasks.filter(t => !t.phase && !t.is_sub_contractor_task);
-  const allAssignees = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
+  const allAssignees = [...new Set(tasks.flatMap(t => taskAssignees(t)))];
 
   // Which phases are visible to this user
   const visiblePhases = isHighRole ? PHASES : PHASES.slice(0, currentPhaseIdx + 1);
@@ -251,19 +252,10 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
                         <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="What needs to be done?" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        {canAssign && subtasks.length === 0 && (
+                        {canAssign && (
                           <div>
                             <Label>Assign To</Label>
-                            <Select value={form.assigned_to || 'unassigned'} onValueChange={val => setForm({ ...form, assigned_to: val === 'unassigned' ? '' : val })}>
-                              <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">Unassigned</SelectItem>
-                                {nonClientUsers.map(u => {
-                                  const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email;
-                                  return <SelectItem key={u.id} value={fullName}>{fullName}</SelectItem>;
-                                })}
-                              </SelectContent>
-                            </Select>
+                            <AssigneeSelect value={form.assignees || []} onChange={vals => setForm({ ...form, assignees: vals })} users={nonClientUsers} />
                           </div>
                         )}
                         <div>
@@ -279,9 +271,6 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
                           </Select>
                         </div>
                       </div>
-                      {subtasks.length > 0 && canAssign && (
-                        <p className="text-xs text-muted-foreground -mt-1">Assignees are set per subtask when subtasks are present.</p>
-                      )}
                       <div>
                         <Label>Due Date</Label>
                         <Input type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
@@ -466,19 +455,10 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
               <Input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {canAssign && editSubtasks.length === 0 && (
+              {canAssign && (
                 <div>
                   <Label>Assign To</Label>
-                  <Select value={editForm.assigned_to || 'unassigned'} onValueChange={val => setEditForm({ ...editForm, assigned_to: val === 'unassigned' ? '' : val })}>
-                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {nonClientUsers.map(u => {
-                        const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email;
-                        return <SelectItem key={u.id} value={fullName}>{fullName}</SelectItem>;
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <AssigneeSelect value={editForm.assignees || []} onChange={vals => setEditForm({ ...editForm, assignees: vals })} users={nonClientUsers} />
                 </div>
               )}
               <div>
@@ -494,9 +474,6 @@ export default function TasksList({ tasks, projectId, projectName, project, onRe
                 </Select>
               </div>
             </div>
-            {editSubtasks.length > 0 && canAssign && (
-              <p className="text-xs text-muted-foreground">Assignees are set per subtask when subtasks are present.</p>
-            )}
             <div>
               <Label>Due Date</Label>
               <Input type="date" value={editForm.due_date} onChange={e => setEditForm({ ...editForm, due_date: e.target.value })} />
@@ -598,7 +575,8 @@ function TaskRow({ task, onToggle, onDelete, onEdit, onRefresh, canManage, canCo
   const isCompleted = task.status === 'completed';
   const subtasks = task.subtasks || [];
   const hasSubtasks = subtasks.length > 0;
-  const isUnassigned = !hasSubtasks && (!task.assigned_to || task.assigned_to === 'unassigned');
+  const assignees = taskAssignees(task);
+  const isUnassigned = !hasSubtasks && assignees.length === 0;
   const completedSubtasks = subtasks.filter(s => s.completed).length;
 
   const toggleSubtask = async (subtaskId) => {
@@ -633,10 +611,10 @@ function TaskRow({ task, onToggle, onDelete, onEdit, onRefresh, canManage, canCo
               <span className="flex items-center gap-1 text-red-600 font-medium">
                 <AlertTriangle className="w-3 h-3" /> Unassigned
               </span>
-            ) : task.assigned_to ? (
+            ) : assignees.length > 0 ? (
               <span className="flex items-center gap-1 text-muted-foreground">
                 <User className="w-3 h-3" />
-                {task.assigned_to}
+                {assignees.join(', ')}
               </span>
             ) : null}
             {task.due_date && <span className="text-muted-foreground">· Due {format(new Date(task.due_date), 'MMM d')}</span>}

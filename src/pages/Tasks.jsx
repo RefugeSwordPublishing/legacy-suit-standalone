@@ -15,6 +15,8 @@ import { ListTodo, User, AlertTriangle, Plus, Trash2, Pencil, Package, ChevronDo
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { sortByName } from '@/lib/naturalSort';
+import { taskAssignees } from '@/lib/taskAssignees';
+import AssigneeSelect from '@/components/tasks/AssigneeSelect';
 
 const priorityConfig = {
   low: { label: 'Low', className: 'bg-slate-100 text-slate-600' },
@@ -23,7 +25,7 @@ const priorityConfig = {
   urgent: { label: 'Urgent', className: 'bg-red-100 text-red-700' },
 };
 
-const emptyTask = { title: '', assigned_to: '', priority: 'medium', due_date: '', notes: '', project_id: '' };
+const emptyTask = { title: '', assigned_to: '', assignees: [], priority: 'medium', due_date: '', notes: '', project_id: '' };
 const emptyMaterial = { name: '', quantity: '', unit: '', notes: '' };
 
 export default function Tasks() {
@@ -41,8 +43,11 @@ export default function Tasks() {
   const [editForm, setEditForm] = useState({});
   const [materials, setMaterials] = useState([]);
   const [showMaterials, setShowMaterials] = useState(false);
-  const [subtasks, setSubtasks] = useState([]);
+  const [subtasks, setSubtasks] = useState([]); // add-dialog checklist: [{ title, assigned_to }]
   const [newSubtask, setNewSubtask] = useState('');
+  const [editSubtasks, setEditSubtasks] = useState([]); // edit-dialog checklist: [{ id, title, assigned_to, completed }]
+  const [newEditSubtask, setNewEditSubtask] = useState('');
+  const genSubId = () => `st_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
   const isCrewMember = currentUser?.role === 'crew_member';
   const isSiteManager = currentUser?.role === 'site_manager';
@@ -83,10 +88,12 @@ export default function Tasks() {
 
   const isAssignedToMe = (name) => name && userNameVariants.has(name);
   const hasMySubtask = (t) => (t.subtasks || []).some(st => isAssignedToMe(st.assigned_to));
+  // A task is "mine" if I'm one of its (possibly many) assignees.
+  const isTaskMine = (t) => taskAssignees(t).some(n => isAssignedToMe(n));
 
   // For crew members: visible projects = any project they have a task/subtask in
   const crewTaskProjectIds = isCrewMember
-    ? new Set(allTasks.filter(t => isAssignedToMe(t.assigned_to) || hasMySubtask(t)).map(t => t.project_id))
+    ? new Set(allTasks.filter(t => isTaskMine(t) || hasMySubtask(t)).map(t => t.project_id))
     : null;
 
   const visibleProjects = isHighRole
@@ -101,11 +108,11 @@ export default function Tasks() {
   // Crew members: show ALL tasks assigned to them across ALL projects (they may not be in assigned_project_ids)
   let tasks;
   if (isCrewMember) {
-    tasks = allTasks.filter(t => isAssignedToMe(t.assigned_to) || hasMySubtask(t));
+    tasks = allTasks.filter(t => isTaskMine(t) || hasMySubtask(t));
   } else {
     tasks = allTasks.filter(t => visibleProjectIds.has(t.project_id));
     if (viewFilter === 'mine') {
-      tasks = tasks.filter(t => isAssignedToMe(t.assigned_to) || hasMySubtask(t));
+      tasks = tasks.filter(t => isTaskMine(t) || hasMySubtask(t));
     }
   }
 
@@ -142,15 +149,21 @@ export default function Tasks() {
 
   const openEdit = (task) => {
     setEditingTask(task);
-    setEditForm({ title: task.title, assigned_to: task.assigned_to || '', priority: task.priority, due_date: task.due_date || '', notes: task.notes || '' });
+    setEditForm({ title: task.title, assignees: taskAssignees(task), priority: task.priority, due_date: task.due_date || '', notes: task.notes || '' });
+    setEditSubtasks((task.subtasks || []).map(s => ({ ...s })));
+    setNewEditSubtask('');
   };
 
   const handleEditSave = async () => {
     setSaving(true);
-    await base44.entities.Task.update(editingTask.id, editForm);
-    setEditingTask(null);
-    setSaving(false);
-    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    try {
+      const assignees = editForm.assignees || [];
+      await base44.entities.Task.update(editingTask.id, { ...editForm, assignees, assigned_to: assignees[0] || '', subtasks: editSubtasks });
+      setEditingTask(null);
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleComplete = async (task) => {
@@ -197,8 +210,9 @@ export default function Tasks() {
   const handleSave = async () => {
     if (!form.title || !form.project_id) return;
     setSaving(true);
-    const taskSubtasks = subtasks.map((s, i) => ({ id: String(i), title: s, completed: false }));
-    await base44.entities.Task.create({ ...form, status: 'pending', subtasks: taskSubtasks });
+    const taskSubtasks = subtasks.map((s, i) => ({ id: String(i), title: s.title, assigned_to: s.assigned_to || '', completed: false }));
+    const assignees = form.assignees || [];
+    await base44.entities.Task.create({ ...form, assignees, assigned_to: assignees[0] || '', status: 'pending', subtasks: taskSubtasks });
     // Save any material requests
     const validMaterials = materials.filter(m => m.name.trim());
     for (const mat of validMaterials) {
@@ -340,20 +354,13 @@ export default function Tasks() {
               {canAssign && (
                 <div>
                   <Label>Assign To</Label>
-                  <Select value={editForm.assigned_to || 'unassigned'} onValueChange={val => setEditForm({ ...editForm, assigned_to: val === 'unassigned' ? '' : val })}>
-                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {allUsers.filter(u => u.role !== 'client').map(u => {
-                                         const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email;
-                                         return (
-                                         <SelectItem key={u.id} value={fullName}>{fullName}</SelectItem>
-                                         );
-                                       })}
-                                       </SelectContent>
-                                       </Select>
-                                       </div>
-                                       )}
+                  <AssigneeSelect
+                    value={editForm.assignees || []}
+                    onChange={vals => setEditForm({ ...editForm, assignees: vals })}
+                    users={allUsers.filter(u => u.role !== 'client')}
+                  />
+                </div>
+              )}
                               <div>
                                  <Label>Priority</Label>
                       <Select value={editForm.priority || 'medium'} onValueChange={val => setEditForm({ ...editForm, priority: val })}>
@@ -375,26 +382,44 @@ export default function Tasks() {
                       <Label>Notes</Label>
                       <Input value={editForm.notes || ''} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Additional details" />
                       </div>
-                      {editingTask?.subtasks?.length > 0 && (
-                        <div className="border rounded-lg p-3 space-y-2">
-                          <p className="text-sm font-medium flex items-center gap-1.5"><CheckSquare className="w-4 h-4 text-muted-foreground" /> Checklist</p>
-                          {editingTask.subtasks.map(s => (
-                            <div key={s.id} className="flex items-center gap-2">
-                              <Checkbox
-                                checked={s.completed}
-                                disabled={!canCheckSubtasks}
-                                onCheckedChange={async () => {
-                                  const updated = editingTask.subtasks.map(sub => sub.id === s.id ? { ...sub, completed: !sub.completed } : sub);
-                                  await base44.entities.Task.update(editingTask.id, { subtasks: updated });
-                                  setEditingTask({ ...editingTask, subtasks: updated });
-                                  queryClient.invalidateQueries({ queryKey: ['tasks'] });
-                                }}
-                              />
-                              <span className={`text-sm ${s.completed ? 'line-through text-muted-foreground' : ''}`}>{s.title}</span>
-                            </div>
-                          ))}
+                      <div className="border rounded-lg p-3 space-y-2">
+                        <p className="text-sm font-medium flex items-center gap-1.5"><CheckSquare className="w-4 h-4 text-muted-foreground" /> Checklist</p>
+                        {canAssign && <p className="text-[11px] text-muted-foreground -mt-1">Assign items to different people to split this task across the crew.</p>}
+                        {editSubtasks.map((s, i) => (
+                          <div key={s.id || i} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={s.completed}
+                              disabled={!canCheckSubtasks}
+                              onCheckedChange={() => setEditSubtasks(editSubtasks.map((x, j) => j === i ? { ...x, completed: !x.completed } : x))}
+                            />
+                            <span className={`flex-1 text-sm truncate ${s.completed ? 'line-through text-muted-foreground' : ''}`}>{s.title}</span>
+                            {canAssign && (
+                              <Select value={s.assigned_to || 'unassigned'} onValueChange={val => setEditSubtasks(editSubtasks.map((x, j) => j === i ? { ...x, assigned_to: val === 'unassigned' ? '' : val } : x))}>
+                                <SelectTrigger className="h-7 w-32 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                                  {allUsers.filter(u => u.role !== 'client').map(u => { const fn = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email; return <SelectItem key={u.id} value={fn}>{fn}</SelectItem>; })}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            <button onClick={() => setEditSubtasks(editSubtasks.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <Input
+                            value={newEditSubtask}
+                            onChange={e => setNewEditSubtask(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && newEditSubtask.trim()) { setEditSubtasks([...editSubtasks, { id: genSubId(), title: newEditSubtask.trim(), assigned_to: '', completed: false }]); setNewEditSubtask(''); e.preventDefault(); } }}
+                            placeholder="Add checklist item..."
+                            className="h-8 text-sm"
+                          />
+                          <Button size="sm" variant="outline" className="h-8" onClick={() => { if (newEditSubtask.trim()) { setEditSubtasks([...editSubtasks, { id: genSubId(), title: newEditSubtask.trim(), assigned_to: '', completed: false }]); setNewEditSubtask(''); } }}>
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
-                      )}
+                      </div>
                       <Button onClick={handleEditSave} disabled={!editForm.title || saving} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                       {saving ? 'Saving...' : 'Save Changes'}
                       </Button>
@@ -428,18 +453,11 @@ export default function Tasks() {
                       {canAssign && (
                       <div>
                       <Label>Assign To</Label>
-                      <Select value={form.assigned_to} onValueChange={val => setForm({ ...form, assigned_to: val })}>
-                      <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                      <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {allUsers.filter(u => u.role !== 'client').map(u => {
-                        const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email;
-                        return (
-                        <SelectItem key={u.id} value={fullName}>{fullName}</SelectItem>
-                        );
-                      })}
-                      </SelectContent>
-                      </Select>
+                      <AssigneeSelect
+                        value={form.assignees || []}
+                        onChange={vals => setForm({ ...form, assignees: vals })}
+                        users={allUsers.filter(u => u.role !== 'client')}
+                      />
                       </div>
                       )}
                       <div>
@@ -464,12 +482,22 @@ export default function Tasks() {
               <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Additional details" />
             </div>
 
-            {/* Subtasks / Checklist */}
+            {/* Subtasks / Checklist — assign items to different people to split a task across the crew */}
             <div className="border rounded-lg p-3 space-y-2">
               <p className="text-sm font-medium flex items-center gap-1.5"><CheckSquare className="w-4 h-4 text-muted-foreground" /> Checklist (optional)</p>
+              {canAssign && <p className="text-[11px] text-muted-foreground -mt-1">Assign items to different people to split this task across the crew.</p>}
               {subtasks.map((s, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm text-muted-foreground bg-muted rounded px-2 py-1">{s}</span>
+                  <span className="flex-1 text-sm text-foreground bg-muted rounded px-2 py-1 truncate">{s.title}</span>
+                  {canAssign && (
+                    <Select value={s.assigned_to || 'unassigned'} onValueChange={val => setSubtasks(subtasks.map((x, j) => j === i ? { ...x, assigned_to: val === 'unassigned' ? '' : val } : x))}>
+                      <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {allUsers.filter(u => u.role !== 'client').map(u => { const fn = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email; return <SelectItem key={u.id} value={fn}>{fn}</SelectItem>; })}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <button onClick={() => setSubtasks(subtasks.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -479,11 +507,11 @@ export default function Tasks() {
                 <Input
                   value={newSubtask}
                   onChange={e => setNewSubtask(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && newSubtask.trim()) { setSubtasks([...subtasks, newSubtask.trim()]); setNewSubtask(''); e.preventDefault(); } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && newSubtask.trim()) { setSubtasks([...subtasks, { title: newSubtask.trim(), assigned_to: '' }]); setNewSubtask(''); e.preventDefault(); } }}
                   placeholder="Add checklist item..."
                   className="h-8 text-sm"
                 />
-                <Button size="sm" variant="outline" className="h-8" onClick={() => { if (newSubtask.trim()) { setSubtasks([...subtasks, newSubtask.trim()]); setNewSubtask(''); } }}>
+                <Button size="sm" variant="outline" className="h-8" onClick={() => { if (newSubtask.trim()) { setSubtasks([...subtasks, { title: newSubtask.trim(), assigned_to: '' }]); setNewSubtask(''); } }}>
                   <Plus className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -529,13 +557,15 @@ export default function Tasks() {
 
 function TaskRow({ task, project, canManage, canEdit, canCheckSubtasks, onToggle, onDelete, onEdit, queryClient, isGoalTask, isAssignedToMe, filterSubtasksToMe }) {
   const allSubtasks = task.subtasks || [];
-  // For crew members, only show subtasks assigned to them
+  // For crew members, show subtasks assigned to them OR unassigned (so items with no assignee are
+  // still visible and checkable — otherwise a crew member sees no subtasks at all).
   const subtasks = filterSubtasksToMe && isAssignedToMe
-    ? allSubtasks.filter(s => isAssignedToMe(s.assigned_to))
+    ? allSubtasks.filter(s => !s.assigned_to || s.assigned_to === 'unassigned' || isAssignedToMe(s.assigned_to))
     : allSubtasks;
   // Auto-expand if user is shown because of a subtask assignment (not direct task assignment)
+  const assignees = taskAssignees(task);
   const hasMySubtask = isAssignedToMe && subtasks.some(st => isAssignedToMe(st.assigned_to));
-  const directlyAssigned = isAssignedToMe && isAssignedToMe(task.assigned_to);
+  const directlyAssigned = isAssignedToMe && assignees.some(n => isAssignedToMe(n));
   const autoExpand = hasMySubtask && !directlyAssigned;
 
   const [expanded, setExpanded] = useState(autoExpand);
@@ -543,11 +573,12 @@ function TaskRow({ task, project, canManage, canEdit, canCheckSubtasks, onToggle
   const [confirmDelete, setConfirmDelete] = useState(false);
   const pc = priorityConfig[task.priority] || priorityConfig.medium;
   const isCompleted = task.status === 'completed';
-  const isUnassigned = !task.assigned_to || task.assigned_to === 'unassigned';
+  const isUnassigned = assignees.length === 0;
   const completedSubtasks = subtasks.filter(s => s.completed).length;
 
   const toggleSubtask = async (subtaskId) => {
-    const updated = subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+    // Map over the FULL subtask list, not the crew-filtered subset, or we'd clobber everyone else's.
+    const updated = allSubtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
     await base44.entities.Task.update(task.id, { subtasks: updated });
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
   };
@@ -579,9 +610,9 @@ function TaskRow({ task, project, canManage, canEdit, canCheckSubtasks, onToggle
                 <span className="flex items-center gap-1 text-red-600 font-medium">
                   <AlertTriangle className="w-3 h-3" /> Unassigned
                 </span>
-              ) : task.assigned_to && task.assigned_to !== 'unassigned' ? (
+              ) : assignees.length > 0 ? (
                 <span className="flex items-center gap-1">
-                  <User className="w-3 h-3" /> {task.assigned_to}
+                  <User className="w-3 h-3" /> {assignees.join(', ')}
                 </span>
               ) : null}
               {task.due_date && <span>Due {format(new Date(task.due_date), 'MMM d')}</span>}

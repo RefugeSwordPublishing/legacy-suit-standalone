@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { CalendarOff } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function TimeOffRequestDialog({ open, onOpenChange }) {
   const { currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -21,27 +23,32 @@ export default function TimeOffRequestDialog({ open, onOpenChange }) {
   const handleSubmit = async () => {
     if (!range.from) return;
     setSaving(true);
-    const startDate = format(range.from, 'yyyy-MM-dd');
-    const endDate = format(range.to || range.from, 'yyyy-MM-dd');
-    const userName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.email;
-    await base44.entities.TimeOffRequest.create({
-      user_id: currentUser.id,
-      user_name: userName,
-      user_role: currentUser.role,
-      start_date: startDate,
-      end_date: endDate,
-      reason: reason.trim() || undefined,
-      status: 'pending',
-    });
-    queryClient.invalidateQueries({ queryKey: ['time-off-requests'] });
-    setSaving(false);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setRange({ from: undefined, to: undefined });
-      setReason('');
-      onOpenChange(false);
-    }, 1500);
+    try {
+      const startDate = format(range.from, 'yyyy-MM-dd');
+      const endDate = format(range.to || range.from, 'yyyy-MM-dd');
+      const userName = [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.email;
+      await base44.entities.TimeOffRequest.create({
+        user_id: currentUser.id,
+        user_name: userName,
+        user_role: currentUser.role,
+        start_date: startDate,
+        end_date: endDate,
+        reason: reason.trim() || undefined,
+        status: 'pending',
+      });
+      queryClient.invalidateQueries({ queryKey: ['time-off-requests'] });
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        setRange({ from: undefined, to: undefined });
+        setReason('');
+        onOpenChange(false);
+      }, 1500);
+    } catch (e) {
+      toast({ title: 'Could not submit request', description: e?.message ? String(e.message).slice(0, 160) : 'Please try again.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const displayRange = range.from
