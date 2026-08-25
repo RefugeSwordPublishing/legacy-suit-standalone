@@ -68,10 +68,11 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
     setSending(true);
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.guildwright.app';
-      const link = `${origin}/submit-bid/${bidRequest.id}`;
       const kind = isEstimate ? 'estimate' : 'bid';
       const scopeList = (br?.scope_of_work || []).map(s => `<li>${s.title}</li>`).join('');
       for (const sub of invitedSubs.filter(s => s.email)) {
+        // Per-contractor link: the submit page reads bidRequestId + subId from the query string.
+        const link = `${origin}/submit-bid?bidRequestId=${bidRequest.id}&subId=${sub.id}${isEstimate ? '&mode=approve_estimate' : ''}`;
         const greeting = sub.contact_name || sub.name || 'there';
         const html = `<p>Hi ${greeting},</p>`
           + `<p>You've been invited to submit ${isEstimate ? 'an estimate' : 'a bid'} for <strong>${br?.title || 'a project'}</strong>${br?.project_address ? ` at ${br.project_address}` : ''}.</p>`

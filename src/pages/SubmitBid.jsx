@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Square, DollarSign, Calendar, FileText, CheckCircle, ClipboardCheck } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { supabase } from '@/api/base44Client';
 
 export default function SubmitBid() {
   const params = new URLSearchParams(window.location.search);
@@ -31,12 +32,12 @@ export default function SubmitBid() {
   const [declined, setDeclined] = useState(false);
 
   const callPublicFunction = async (payload) => {
-    const res = await fetch(`${window.location.origin}/functions/subContractorBid`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return res.json();
+    const { data, error } = await supabase.functions.invoke('subContractorBid', { body: payload });
+    if (error) {
+      try { const b = await error.context?.json?.(); if (b) return b; } catch { /* ignore */ }
+      return { error: error.message };
+    }
+    return data;
   };
 
   useEffect(() => {

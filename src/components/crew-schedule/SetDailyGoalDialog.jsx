@@ -36,6 +36,8 @@ function buildSelectableItems(taskList) {
 
   taskList.forEach(task => {
     if (task.status === 'completed') return;
+    // Subcontractor work is not staff daily-goal material — exclude it from the picker.
+    if (task.is_sub_contractor_task) return;
 
     const subtasks = task.subtasks || [];
     const incompleteSubtasks = subtasks.filter(st => !st.completed);

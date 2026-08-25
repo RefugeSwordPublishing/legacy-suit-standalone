@@ -124,11 +124,12 @@ export default function BidRequestFormDialog({ open, onOpenChange, bidRequest = 
   // never wired in the adapter, so bid-request emails silently never sent.
   const notifySubs = async (bidReqId, subIds, { updated = false } = {}) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.guildwright.app';
-    const link = `${origin}/submit-bid/${bidReqId}`;
     const kind = isEstimate ? 'estimate' : 'bid';
     const scopeList = (form.scope_of_work || []).map(s => `<li>${s.title}</li>`).join('');
     const selected = subs.filter(s => (subIds || []).includes(s.id) && s.email);
     for (const sub of selected) {
+      // Per-contractor link: the submit page reads bidRequestId + subId from the query string.
+      const link = `${origin}/submit-bid?bidRequestId=${bidReqId}&subId=${sub.id}${isEstimate ? '&mode=approve_estimate' : ''}`;
       const greeting = sub.contact_name || sub.name || 'there';
       const subject = updated
         ? `Updated ${kind} request: ${form.title || 'Project'}`
