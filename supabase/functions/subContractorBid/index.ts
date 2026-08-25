@@ -41,6 +41,29 @@ Deno.serve(async (req) => {
   const findExisting = async () =>
     (await admin.from('bid_submissions').select('*').eq('bid_request_id', bidRequestId).eq('sub_contractor_id', sid).maybeSingle()).data;
 
+  // Notify the tenant's managers (owner + site_manager) in-app. Each inserted notification row
+  // fans out a web/native push via the notifications trigger, so no email is sent.
+  const subName = sub?.name || sub?.contact_name || 'A subcontractor';
+  const notifyManagers = async (title: string, message: string) => {
+    const { data: mgrs } = await admin
+      .from('user_profiles')
+      .select('user_id')
+      .eq('company_id', br.company_id)
+      .in('role', ['owner', 'site_manager']);
+    const rows = (mgrs || [])
+      .map((m) => m.user_id)
+      .filter(Boolean)
+      .map((uid) => ({
+        company_id: br.company_id,
+        user_id: uid,
+        type: 'bid',
+        title,
+        message,
+        project_name: br.project_name || null,
+      }));
+    if (rows.length) await admin.from('notifications').insert(rows);
+  };
+
   // Save (or update) this sub's single submission. company_id must be set explicitly (service role
   // has no auth_company_id() default).
   // deno-lint-ignore no-explicit-any
@@ -78,6 +101,8 @@ Deno.serve(async (req) => {
       status: 'submitted',
     });
     await admin.from('bid_requests').update({ status: 'reviewing' }).eq('id', bidRequestId).eq('status', 'sent');
+    const amt = body.bidAmount != null ? ` for $${Number(body.bidAmount).toLocaleString()}` : '';
+    await notifyManagers('New bid submitted', `${subName} submitted a bid${amt} on "${br.title || br.project_name || 'a bid request'}".`);
     return json({ ok: true });
   }
 
@@ -90,6 +115,7 @@ Deno.serve(async (req) => {
       status: 'approved',
     });
     await admin.from('bid_requests').update({ status: 'awarded' }).eq('id', bidRequestId);
+    await notifyManagers('Estimate accepted', `${subName} accepted the estimate on "${br.title || br.project_name || 'a bid request'}".`);
     return json({ ok: true });
   }
 
@@ -99,11 +125,13 @@ Deno.serve(async (req) => {
       estimated_end_date: body.estimatedEndDate || null,
       notes: body.notes || null,
     });
+    await notifyManagers('Schedule confirmed', `${subName} confirmed their schedule on "${br.title || br.project_name || 'a bid request'}".`);
     return json({ ok: true });
   }
 
   if (mode === 'decline_estimate' || mode === 'decline_bid') {
     await upsert({ status: 'declined', notes: body.reason || body.notes || null });
+    await notifyManagers('Bid declined', `${subName} declined "${br.title || br.project_name || 'a bid request'}".`);
     return json({ ok: true });
   }
 
