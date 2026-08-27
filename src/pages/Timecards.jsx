@@ -45,6 +45,7 @@ export default function Timecards() {
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [adjustEntry, setAdjustEntry] = useState(null);
   const [adjustForm, setAdjustForm] = useState({ clock_in: '', clock_out: '', reason: '' });
+  const [submittingAdjust, setSubmittingAdjust] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(currentUser?.id || '');
   const [editEntry, setEditEntry] = useState(null);
   const [editForm, setEditForm] = useState({ clock_in: '', clock_out: '' });
@@ -147,22 +148,34 @@ export default function Timecards() {
   };
 
   const submitAdjustment = async () => {
-    await base44.entities.TimecardAdjustment.create({
-      time_entry_id: adjustEntry.id,
-      user_id: currentUser.id,
-      user_name: currentUser.full_name || currentUser.email,
-      project_id: adjustEntry.project_id,
-      project_name: adjustEntry.project_name,
-      date: adjustEntry.date,
-      original_clock_in: adjustEntry.clock_in,
-      original_clock_out: adjustEntry.clock_out,
-      requested_clock_in: adjustForm.clock_in ? new Date(adjustForm.clock_in).toISOString() : adjustEntry.clock_in,
-      requested_clock_out: adjustForm.clock_out ? new Date(adjustForm.clock_out).toISOString() : adjustEntry.clock_out,
-      reason: adjustForm.reason,
-      status: 'pending',
-    });
-    queryClient.invalidateQueries({ queryKey: ['timecard-adjustments'] });
-    setAdjustEntry(null);
+    // Guard against rapid double-taps: the dialog only closes after the insert resolves,
+    // so without this a burst of taps each fired a full create (5-12 duplicate requests).
+    if (submittingAdjust) return;
+    setSubmittingAdjust(true);
+    const entry = adjustEntry;
+    setAdjustEntry(null); // close immediately so no further taps land on this request
+    try {
+      await base44.entities.TimecardAdjustment.create({
+        time_entry_id: entry.id,
+        user_id: currentUser.id,
+        user_name: currentUser.full_name || currentUser.email,
+        project_id: entry.project_id,
+        project_name: entry.project_name,
+        date: entry.date,
+        original_clock_in: entry.clock_in,
+        original_clock_out: entry.clock_out,
+        requested_clock_in: adjustForm.clock_in ? new Date(adjustForm.clock_in).toISOString() : entry.clock_in,
+        requested_clock_out: adjustForm.clock_out ? new Date(adjustForm.clock_out).toISOString() : entry.clock_out,
+        reason: adjustForm.reason,
+        status: 'pending',
+      });
+      queryClient.invalidateQueries({ queryKey: ['timecard-adjustments'] });
+    } catch (err) {
+      alert('Could not submit the adjustment. Please try again.');
+      setAdjustEntry(entry); // reopen so the request is not lost
+    } finally {
+      setSubmittingAdjust(false);
+    }
   };
 
   const approveAdjustment = async (adj) => {
@@ -650,7 +663,7 @@ export default function Timecards() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjustEntry(null)}>Cancel</Button>
-            <Button onClick={submitAdjustment} disabled={!adjustForm.reason}>Submit Request</Button>
+            <Button onClick={submitAdjustment} disabled={!adjustForm.reason || submittingAdjust}>{submittingAdjust ? 'Submitting...' : 'Submit Request'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
