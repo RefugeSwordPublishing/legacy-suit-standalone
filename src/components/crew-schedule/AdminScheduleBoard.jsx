@@ -107,7 +107,14 @@ export default function AdminScheduleBoard({ users, projects, scheduleEntries, o
       });
       await queryClient.invalidateQueries({ queryKey: ['crew-schedule'] });
     } catch (e) {
-      toast({ title: 'Failed to save assignment', description: e.message, variant: 'destructive' });
+      // A rapid re-pick can race the cache guard; the DB unique index then rejects the duplicate.
+      // That means the assignment already exists, so treat it as success rather than an error.
+      const dup = e?.code === '23505' || /duplicate|unique/i.test(e?.message || '');
+      if (dup) {
+        await queryClient.invalidateQueries({ queryKey: ['crew-schedule'] });
+      } else {
+        toast({ title: 'Failed to save assignment', description: e.message, variant: 'destructive' });
+      }
     }
   };
 
