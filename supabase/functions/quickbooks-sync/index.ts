@@ -304,9 +304,13 @@ Deno.serve(async (req) => {
       if (invoice.issue_date) invPayload.TxnDate = invoice.issue_date;
       if (invoice.due_date) invPayload.DueDate = invoice.due_date;
       const billEmail = invoice.client_email || client?.email;
-      if (billEmail) invPayload.BillEmail = { Address: billEmail };
-      // When auto-send is off, land the invoice in QBO as a draft that has NOT been emailed
-      // (EmailStatus NotSet) so the tenant can review it before sending.
+      // Only attach a recipient (BillEmail) when auto-send is ON. QBO will auto-deliver an invoice
+      // that carries a BillEmail when the customer's preferred delivery method is Email, even with
+      // EmailStatus=NotSet — which was silently emailing clients while auto-send was off. Leaving
+      // BillEmail off means QBO has no recipient and physically cannot send; the tenant fills it in
+      // when they choose to send from QBO (it auto-populates from the customer record).
+      if (autoSend && billEmail) invPayload.BillEmail = { Address: billEmail };
+      // Auto-send off => land as an un-emailed draft for the tenant to review before sending.
       invPayload.EmailStatus = autoSend && billEmail ? 'NeedToSend' : 'NotSet';
 
       const created = await qboRequest('POST', '/invoice', token, realmId, invPayload);
