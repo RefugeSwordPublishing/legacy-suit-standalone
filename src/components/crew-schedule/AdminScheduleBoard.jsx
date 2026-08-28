@@ -91,6 +91,7 @@ export default function AdminScheduleBoard({ users, projects, scheduleEntries, o
     if (!projectId || projectId === '__none__') return;
 
     const uid = user.user_id || user.id;
+    if (!uid) return; // never create an unassigned (orphan) schedule entry
     const blocked = approvedTimeOff.some(r => r.user_id === uid && dateStr >= r.start_date && dateStr <= r.end_date);
     if (blocked) return;
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { FolderOpen, Calendar, FolderKanban, ChevronUp, Users, HardHat } from 'lucide-react';
+import { FolderOpen, Calendar, FolderKanban, ChevronUp, Users, HardHat, MapPin } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useCurrentUser } from '@/lib/UserContext';
 
@@ -20,6 +20,12 @@ const canViewMyProjects = (user) => {
   if (!user?.role) return false;
   const role = user.role.toLowerCase();
   return ['admin', 'coo', 'owner', 'site_manager'].includes(role);
+};
+
+// Crew get the simplified Job Sites directory (address + lockbox) instead of the full My Projects page.
+const canViewJobSites = (user) => {
+  if (!user?.role) return false;
+  return user.role.toLowerCase() === 'crew_member';
 };
 
 const canViewCrewSchedule = (user) => {
@@ -42,6 +48,14 @@ export default function ProjectsMenu({ mobile = false }) {
       path: '/projects',
       label: 'My Projects',
       icon: FolderKanban,
+    });
+  }
+
+  if (canViewJobSites(currentUser)) {
+    menuItems.push({
+      path: '/job-sites',
+      label: 'Job Sites',
+      icon: MapPin,
     });
   }
 
@@ -73,7 +87,7 @@ export default function ProjectsMenu({ mobile = false }) {
 
   if (menuItems.length === 0) return null;
 
-  const isActive = ['/projects', '/schedules', '/crew-schedule', '/sub-contractors'].includes(location.pathname);
+  const isActive = ['/projects', '/job-sites', '/schedules', '/crew-schedule', '/sub-contractors'].includes(location.pathname);
 
   if (mobile) {
     return (

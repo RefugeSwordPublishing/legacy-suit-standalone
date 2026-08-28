@@ -11,6 +11,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
+import JobSites from '@/pages/JobSites';
 import ProjectDetail from '@/pages/ProjectDetail';
 import Templates from '@/pages/Templates';
 import MaterialsDashboard from '@/pages/MaterialsDashboard';
@@ -121,6 +122,7 @@ const AuthenticatedApp = () => {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
+        <Route path="/job-sites" element={<JobSites />} />
         <Route path="/tasks" element={<ProtectedRoute tier="field" proFeature="Tasks"><Tasks /></ProtectedRoute>} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/materials" element={<ProtectedRoute tier="pro" proFeature="Materials"><MaterialsDashboard /></ProtectedRoute>} />

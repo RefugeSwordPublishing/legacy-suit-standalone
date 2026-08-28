@@ -125,7 +125,9 @@ export default function AppLayout() {
     ? [{ label: 'Client Portal', path: '/client-portal', icon: Globe, keywords: ['home', 'portal'] }]
     : [
         { label: 'Dashboard', path: '/', icon: LayoutDashboard, keywords: ['home', 'overview', 'clock in', 'clock out', 'time clock', 'punch'] },
-        { label: 'Projects', path: '/projects', icon: ClipboardList, keywords: ['jobs', 'job sites', 'sites'] },
+        (currentUser?.role === 'crew_member'
+          ? { label: 'Job Sites', path: '/job-sites', icon: ClipboardList, keywords: ['jobs', 'job sites', 'sites', 'projects', 'address', 'lockbox'] }
+          : { label: 'Projects', path: '/projects', icon: ClipboardList, keywords: ['jobs', 'job sites', 'sites'] }),
         { label: 'Tasks', path: '/tasks', icon: ListTodo, keywords: ['to do', 'todo'], show: hasField },
         { label: 'Timecards', path: '/timecards', icon: Clock, keywords: ['time', 'hours', 'clock'] },
         { label: 'Daily Goals', path: '/daily-goals', icon: Target, keywords: ['goals'], show: hasField },
