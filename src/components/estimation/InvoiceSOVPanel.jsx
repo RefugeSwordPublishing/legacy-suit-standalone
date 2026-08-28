@@ -42,6 +42,7 @@ export default function InvoiceSOVPanel({
   onCoSovChange,
   projectId,
   allInvoices = [],
+  previousByCategory,
   estimate,
   gcSovEntry,
   onGcChange,
@@ -64,8 +65,21 @@ export default function InvoiceSOVPanel({
 
   const gcFromLines = useMemo(() => lineItems.filter(isGcLine).reduce((s, li) => s + lineAmount(li), 0), [lineItems]);
 
-  // Calculate previous % billed per category from prior paid/sent invoices
+  // Previous % billed per category. Prefer the parent's dollar-based tally (previousByCategory),
+  // which counts BOTH prior SOV deposits and itemized/progress invoices, then converts to a % of the
+  // category contract. This is what lets you bill some lines itemized, then return to SOV mode and
+  // still see the right dollars remaining. Fall back to summing prior SOV percentages only when the
+  // parent doesn't supply the tally (older callers).
   const previousPct = useMemo(() => {
+    if (previousByCategory) {
+      const pct = { materials: 0, labor: 0, subcontractor: 0, other: 0 };
+      for (const cat of CATEGORIES) {
+        const contract = categoryTotals[cat] || 0;
+        const billed = Number(previousByCategory[cat]) || 0;
+        pct[cat] = contract > 0 ? Math.min(100, (billed / contract) * 100) : 0;
+      }
+      return pct;
+    }
     const pct = { materials: 0, labor: 0, subcontractor: 0, other: 0 };
     const priorInvoices = allInvoices.filter(
       inv => inv.project_id === projectId && inv.billing_mode === 'schedule_of_values' && (inv.status === 'paid' || inv.status === 'sent')
@@ -76,7 +90,7 @@ export default function InvoiceSOVPanel({
       });
     });
     return pct;
-  }, [allInvoices, projectId]);
+  }, [allInvoices, projectId, previousByCategory, categoryTotals]);
 
   // Base estimate SOV entries
   const entries = CATEGORIES.map(cat => {

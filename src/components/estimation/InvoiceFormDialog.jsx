@@ -218,11 +218,21 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   const priorInvoices = allInvoices.filter(i => i.project_id === projectId && i.status !== 'void' && i.id !== invoice?.id);
   const billedToDate = priorInvoices.reduce((s, i) => s + (Number(i.grand_total) || 0), 0);
   const billedByCategory = {};
+  // Per-LINE prior billing so each line tracks its own billed $ instead of a pooled category %.
+  //  - itemized/progress invoices recorded exactly which line was billed (source_ref_id) and how
+  //    much (line_total), so we sum those by ref.
+  //  - SOV invoices billed a category bucket with no line detail, so we distribute that bucket
+  //    across the category's contract lines pro-rata by contract value (the standard convention,
+  //    and what makes a uniform 25% deposit show as 25% of every line).
+  const priorItemizedByRef = {};
+  const sovBilledByCategory = {};
   for (const inv of priorInvoices) {
     if (inv.billing_mode === 'schedule_of_values') {
       for (const e of (inv.sov_entries || [])) {
         const cat = e.category === 'gc_fee' ? 'other' : (e.category || 'other');
-        billedByCategory[cat] = (billedByCategory[cat] || 0) + (Number(e.current_amount) || 0);
+        const amt = Number(e.current_amount) || 0;
+        billedByCategory[cat] = (billedByCategory[cat] || 0) + amt;
+        sovBilledByCategory[cat] = (sovBilledByCategory[cat] || 0) + amt;
       }
       for (const e of (inv.co_sov_entries || [])) {
         const cat = e.category === 'gc_fee' ? 'other' : (e.category || 'other');
@@ -232,6 +242,9 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
       for (const li of (inv.line_items || [])) {
         const cat = li.category === 'gc_fee' ? 'other' : (li.category || 'other');
         billedByCategory[cat] = (billedByCategory[cat] || 0) + (Number(li.line_total) || 0);
+        if (li.source_ref_id) {
+          priorItemizedByRef[li.source_ref_id] = (priorItemizedByRef[li.source_ref_id] || 0) + (Number(li.line_total) || 0);
+        }
       }
     }
   }
@@ -388,11 +401,25 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   // category's already-billed % and you bill an additional % or $ per line as work completes. Off
   // for a project's first invoice (no priors), so a normal itemized invoice bills full lines.
   const progressMode = billingMode === 'line_items' && priorInvoices.length > 0;
-  const categoryPriorPct = (cat) => {
-    const c = cat === 'gc_fee' ? 'other' : (cat || 'other');
-    const contract = contractByCategory[c] || 0;
-    return contract > 0 ? Math.min(100, ((billedByCategory[c] || 0) / contract) * 100) : 0;
+  // Dollars already billed against THIS specific line (not the pooled category average). Itemized
+  // priors match by source_ref_id; an SOV deposit is spread pro-rata across the category's contract.
+  const priorAmountForLine = (item) => {
+    const cat = item.category === 'gc_fee' ? 'other' : (item.category || 'other');
+    const lineContract = calcLineTotal(item);
+    let amt = item.source_ref_id ? (priorItemizedByRef[item.source_ref_id] || 0) : 0;
+    const catContract = contractByCategory[cat] || 0;
+    const catSov = sovBilledByCategory[cat] || 0;
+    // Only estimate-derived lines share in an SOV bucket; ad-hoc manual lines do not.
+    if (catSov > 0 && catContract > 0 && (item.source_ref_id || item.source === 'estimate')) {
+      amt += catSov * (lineContract / catContract);
+    }
+    return round2(amt);
   };
+  const priorPctForLine = (item) => {
+    const c = calcLineTotal(item);
+    return c > 0 ? Math.min(100, (priorAmountForLine(item) / c) * 100) : 0;
+  };
+  const remainingForLine = (item) => round2(Math.max(0, calcLineTotal(item) - priorAmountForLine(item)));
   const progressTotal = round2(lineItems.reduce((s, i) => s + (Number(i.bill_amount) || 0), 0));
   // Entering a % sets the $ (of the line's full contract value), and vice-versa; bill_amount is canonical.
   const setBillPct = (id, pct) => setLineItems(prev => prev.map(it => {
@@ -444,7 +471,8 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
             ...i,
             contract_amount: round2(calcLineTotal(i)),
             bill_pct: round2(Number(i.bill_pct) || 0),
-            prior_pct: round2(categoryPriorPct(i.category)),
+            prior_pct: round2(priorPctForLine(i)),
+            prior_amount: priorAmountForLine(i),
             line_total: round2(Number(i.bill_amount) || 0),
           }))
           .filter(i => (i.line_total || 0) > 0)
@@ -758,6 +786,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                 onCoSovChange={setCoSovEntries}
                 projectId={projectId}
                 allInvoices={allInvoices.filter(i => i.id !== invoice?.id)}
+                previousByCategory={billedByCategory}
                 estimate={linkedEstimate}
                 gcSovEntry={sovEntries.find(e => e.category === 'gc_fee')}
                 onGcChange={entry => {
@@ -831,13 +860,20 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                       </div>
                       {progressMode ? (() => {
                         const contract = calcLineTotal(item);
-                        const prior = Math.round(categoryPriorPct(item.category));
+                        const priorAmt = priorAmountForLine(item);
+                        const prior = Math.round(priorPctForLine(item));
+                        const remainingAmt = remainingForLine(item);
                         const toDate = Math.round(prior + (Number(item.bill_pct) || 0));
+                        const overBill = (priorAmt + (Number(item.bill_amount) || 0)) > contract + 0.005;
                         return (
                           <div className="rounded-md bg-muted/40 border border-border p-2.5 space-y-2">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-muted-foreground">Contract: <span className="font-semibold text-foreground">{fmt(contract)}</span></span>
-                              <span className="text-muted-foreground">{prior}% billed · {CAT_LABELS[item.category] || item.category}</span>
+                              <span className="text-muted-foreground">{CAT_LABELS[item.category] || item.category}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Billed to date: <span className="font-medium text-foreground">{fmt(priorAmt)} ({prior}%)</span></span>
+                              <span className="text-muted-foreground">Remaining: <span className="font-medium text-foreground">{fmt(remainingAmt)}</span></span>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
@@ -852,8 +888,8 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                               </div>
                             </div>
                             <div className="flex items-center justify-between text-xs">
-                              <span className={toDate > 100 ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
-                                To date: {toDate}%{toDate > 100 ? ' (over contract)' : ''}
+                              <span className={overBill ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
+                                To date: {toDate}%{overBill ? ' (over contract)' : ''}
                               </span>
                               <span className="font-semibold text-foreground">Billing: {fmt(item.bill_amount || 0)}</span>
                             </div>
