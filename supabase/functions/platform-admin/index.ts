@@ -242,6 +242,52 @@ Deno.serve(async (req) => {
     return json({ ok: true, plan });
   }
 
+  // Extend or restart a tenant's app-managed trial. company_access_level() grants full Pro while
+  // trial_ends_at is in the future, so this is the lever for "give them two more weeks" without
+  // taking a card. 'extend' adds days to the current end (or to today if it already lapsed);
+  // 'restart' starts a fresh window from today. Audited.
+  if (action === 'set_trial') {
+    const companyId = body.companyId;
+    const mode = body.mode === 'restart' ? 'restart' : 'extend';
+    const days = Math.floor(Number(body.days));
+    if (!companyId) return json({ error: 'companyId is required' }, { status: 400 });
+    if (!Number.isFinite(days) || days < 1 || days > 365) {
+      return json({ error: 'days must be a whole number between 1 and 365.' }, { status: 400 });
+    }
+    const { data: c } = await admin.from('companies')
+      .select('plan, subscription_status, trial_ends_at, stripe_subscription_id').eq('id', companyId).maybeSingle();
+    if (!c) return json({ error: 'Company not found' }, { status: 404 });
+
+    const now = Date.now();
+    const current = c.trial_ends_at ? new Date(c.trial_ends_at).getTime() : 0;
+    // Extending a lapsed trial counts from today, so the tenant always gets the full window.
+    const base = mode === 'restart' ? now : Math.max(now, current);
+    const trialEndsAt = new Date(base + days * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error } = await admin.from('companies').update({ trial_ends_at: trialEndsAt }).eq('id', companyId);
+    if (error) return json({ error: error.message }, { status: 400 });
+
+    // A subscription (real or comped) outranks the trial in company_access_level(), so say so
+    // rather than letting the admin believe the grant took effect.
+    const subActive = ['active', 'trialing', 'past_due'].includes(c.subscription_status);
+
+    await admin.from('platform_audit_log').insert({
+      actor_user_id: user.id, actor_email: user.email, action: 'set_trial', company_id: companyId,
+      target_email: `trial:${mode}:${days}d`,
+      details: { mode, days, from: c.trial_ends_at, to: trialEndsAt },
+    });
+    return json({
+      ok: true,
+      trial_ends_at: trialEndsAt,
+      on_trial: !subActive,
+      access_level: subActive ? c.plan : 'pro',
+      inert: subActive,
+      message: subActive
+        ? `Trial now ends ${trialEndsAt.slice(0, 10)}, but this tenant has ${c.stripe_subscription_id ? 'a paid subscription' : 'a comped plan'} (${c.subscription_status}), which outranks a trial. The trial applies only once that ends.`
+        : null,
+    });
+  }
+
   // Permanently delete a tenant. The most destructive action in the portal, so it requires:
   //  (1) a platform admin (checked above), (2) the caller to type the tenant's exact name, and
   //  (3) the tenant to NOT contain a platform admin (protects tenant 0 / the mothership). All
