@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
   if (action === 'list_tenants') {
     const { data: companies, error } = await admin
-      .from('companies').select('id, name, plan, subscription_status, trial_ends_at, created_at').order('created_at', { ascending: true });
+      .from('companies').select('id, name, plan, subscription_status, trial_ends_at, created_at, stripe_subscription_id').order('created_at', { ascending: true });
     if (error) return json({ error: error.message }, { status: 400 });
     const { data: profiles } = await admin.from('user_profiles').select('company_id, role, email, full_name');
     // Error counts per tenant, so the list can flag tenants that need attention.
@@ -49,6 +49,9 @@ Deno.serve(async (req) => {
         id: c.id, name: c.name, plan: c.plan, created_at: c.created_at,
         subscription_status: c.subscription_status, trial_ends_at: c.trial_ends_at,
         access_level: access, on_trial: !!onTrial,
+        // Distinguishes a comped plan (ours to clear) from a paying Stripe subscription (never
+        // touched from here). The id itself stays server-side.
+        has_stripe_sub: !!c.stripe_subscription_id,
         owner_email: owner?.email || null, owner_name: owner?.full_name || null,
         user_count: members.length,
         error_count: errCount[c.id] || 0,
@@ -264,26 +267,37 @@ Deno.serve(async (req) => {
     const base = mode === 'restart' ? now : Math.max(now, current);
     const trialEndsAt = new Date(base + days * 24 * 60 * 60 * 1000).toISOString();
 
-    const { error } = await admin.from('companies').update({ trial_ends_at: trialEndsAt }).eq('id', companyId);
+    // A subscription outranks the trial in company_access_level(). A COMP (set_plan writes
+    // subscription_status active with no Stripe subscription) is ours to clear, so clearComp
+    // hands the tenant back to the trial. A real Stripe subscription is never touched here:
+    // cancelling that belongs in Stripe, not in a support console.
+    const subActive = ['active', 'trialing', 'past_due'].includes(c.subscription_status);
+    const isComp = subActive && !c.stripe_subscription_id;
+    const clearComp = body.clearComp === true && isComp;
+
+    const patch: Record<string, unknown> = { trial_ends_at: trialEndsAt };
+    if (clearComp) patch.subscription_status = 'none';
+    const { error } = await admin.from('companies').update(patch).eq('id', companyId);
     if (error) return json({ error: error.message }, { status: 400 });
 
-    // A subscription (real or comped) outranks the trial in company_access_level(), so say so
-    // rather than letting the admin believe the grant took effect.
-    const subActive = ['active', 'trialing', 'past_due'].includes(c.subscription_status);
+    const stillBlocked = subActive && !clearComp;
+    const status = clearComp ? 'none' : c.subscription_status;
 
     await admin.from('platform_audit_log').insert({
       actor_user_id: user.id, actor_email: user.email, action: 'set_trial', company_id: companyId,
       target_email: `trial:${mode}:${days}d`,
-      details: { mode, days, from: c.trial_ends_at, to: trialEndsAt },
+      details: { mode, days, from: c.trial_ends_at, to: trialEndsAt, clearedComp: clearComp, was_status: c.subscription_status },
     });
     return json({
       ok: true,
       trial_ends_at: trialEndsAt,
-      on_trial: !subActive,
-      access_level: subActive ? c.plan : 'pro',
-      inert: subActive,
-      message: subActive
-        ? `Trial now ends ${trialEndsAt.slice(0, 10)}, but this tenant has ${c.stripe_subscription_id ? 'a paid subscription' : 'a comped plan'} (${c.subscription_status}), which outranks a trial. The trial applies only once that ends.`
+      subscription_status: status,
+      on_trial: !stillBlocked,
+      access_level: stillBlocked ? c.plan : 'pro',
+      inert: stillBlocked,
+      cleared_comp: clearComp,
+      message: stillBlocked
+        ? `Trial now ends ${trialEndsAt.slice(0, 10)}, but this tenant has a paid Stripe subscription (${c.subscription_status}), which outranks a trial. Cancel it in Stripe if the trial should govern.`
         : null,
     });
   }
