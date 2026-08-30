@@ -3,7 +3,8 @@
 // gets the tenant to Stripe and back. Auth: the caller's JWT must map to a membership, and only
 // owner/admin/coo can manage billing.
 //
-// Required secrets: STRIPE_SECRET_KEY, STRIPE_PRO_PRICE_ID (price_...), APP_PUBLIC_URL.
+// Required secrets: STRIPE_SECRET_KEY, APP_PUBLIC_URL, and a price id per plan and interval:
+// STRIPE_FIELD_PRICE_ID, STRIPE_PRO_PRICE_ID, STRIPE_FIELD_ANNUAL_PRICE_ID, STRIPE_PRO_ANNUAL_PRICE_ID.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 
@@ -13,8 +14,12 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 const STRIPE_SECRET = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
-const PRO_PRICE = Deno.env.get('STRIPE_PRO_PRICE_ID') ?? '';
-const FIELD_PRICE = Deno.env.get('STRIPE_FIELD_PRICE_ID') ?? '';
+const PRICES: Record<string, string> = {
+  field_month: Deno.env.get('STRIPE_FIELD_PRICE_ID') ?? '',
+  pro_month: Deno.env.get('STRIPE_PRO_PRICE_ID') ?? '',
+  field_year: Deno.env.get('STRIPE_FIELD_ANNUAL_PRICE_ID') ?? '',
+  pro_year: Deno.env.get('STRIPE_PRO_ANNUAL_PRICE_ID') ?? '',
+};
 const APP_URL = Deno.env.get('APP_PUBLIC_URL') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -43,8 +48,13 @@ Deno.serve(async (req) => {
 
     if (action === 'create_checkout') {
       const wantPlan = body.plan === 'field' ? 'field' : 'pro';
-      const price = wantPlan === 'field' ? FIELD_PRICE : PRO_PRICE;
-      if (!price) return json({ error: `Billing is not configured yet (missing ${wantPlan} price).` }, { status: 400 });
+      // Annual is opt-in per checkout; anything but an explicit 'year' stays monthly so an older
+      // client that knows nothing about intervals keeps buying what it always did.
+      const wantInterval = body.interval === 'year' ? 'year' : 'month';
+      const price = PRICES[`${wantPlan}_${wantInterval}`];
+      if (!price) {
+        return json({ error: `${wantInterval === 'year' ? 'Annual' : 'Monthly'} billing is not configured yet (missing ${wantPlan} price).` }, { status: 400 });
+      }
       const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
         line_items: [{ price, quantity: 1 }],

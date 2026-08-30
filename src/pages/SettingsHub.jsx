@@ -10,6 +10,8 @@ import { Bell, Receipt, Link2, Hash, ClipboardList, Tags, Users, KeyRound, Shiel
 import ReportIssueDialog from '@/components/layout/ReportIssueButton';
 import TimeOffRequestDialog from '@/components/time-off/TimeOffRequestDialog';
 import ExampleDataCard from '@/components/onboarding/ExampleDataCard';
+import BillingIntervalToggle from '@/components/shared/BillingIntervalToggle';
+import { priceLabel, annualSaving } from '@/lib/pricing';
 
 const MODULES = [
   {
@@ -61,6 +63,7 @@ export default function SettingsHub() {
   const [showReportIssue, setShowReportIssue] = useState(false);
   const [showTimeOff, setShowTimeOff] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [billingInterval, setBillingInterval] = useState('month');
   const isHighRole = HIGH_ROLES.includes(role);
 
   // These live in the desktop sidebar; on mobile they have no other home, so the settings hub
@@ -94,7 +97,7 @@ export default function SettingsHub() {
 
   const startBilling = async (action, plan) => {
     setBillingLoading(true);
-    const res = await base44.functions.invoke('stripeBilling', { action, plan });
+    const res = await base44.functions.invoke('stripeBilling', { action, plan, interval: billingInterval });
     if (res.data?.url) { window.location.href = res.data.url; return; }
     setBillingLoading(false);
     toast({ title: 'Billing unavailable', description: res.data?.error || 'Please try again.', variant: 'destructive' });
@@ -170,7 +173,7 @@ export default function SettingsHub() {
                 <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   {isPro ? <>Pro plan <CheckCircle2 className="w-4 h-4 text-emerald-500" /></>
                     : hasField ? 'Field plan'
-                    : onTrial ? `Free trial — ${currentUser?.trial_days_left} day${currentUser?.trial_days_left === 1 ? '' : 's'} left`
+                    : onTrial ? `Free trial, ${currentUser?.trial_days_left} day${currentUser?.trial_days_left === 1 ? '' : 's'} left`
                     : 'No active plan'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -181,7 +184,7 @@ export default function SettingsHub() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-2 sm:justify-end">
               {isPro ? (
                 <button onClick={() => startBilling('create_portal')} disabled={billingLoading}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted disabled:opacity-60">
@@ -189,15 +192,21 @@ export default function SettingsHub() {
                 </button>
               ) : (
                 <>
+                  <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} disabled={billingLoading} />
+                  {billingInterval === 'year' && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 self-center">
+                      Saves ${annualSaving(hasField ? 'pro' : 'field')} a year versus monthly.
+                    </p>
+                  )}
                   {!hasField && (
                     <button onClick={() => startBilling('create_checkout', 'field')} disabled={billingLoading}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted disabled:opacity-60">
-                      {billingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Choose Field
+                      {billingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Choose Field ({priceLabel('field', billingInterval)})
                     </button>
                   )}
                   <button onClick={() => startBilling('create_checkout', 'pro')} disabled={billingLoading}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-60">
-                    {billingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {hasField ? 'Upgrade to Pro' : 'Choose Pro'}
+                    {billingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {hasField ? 'Upgrade to Pro' : 'Choose Pro'} ({priceLabel('pro', billingInterval)})
                   </button>
                   {hasField && (
                     <button onClick={() => startBilling('create_portal')} disabled={billingLoading}

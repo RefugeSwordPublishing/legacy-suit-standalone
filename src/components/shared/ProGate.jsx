@@ -3,6 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { useCurrentUser } from '@/lib/UserContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Lock, Loader2 } from 'lucide-react';
+import BillingIntervalToggle from '@/components/shared/BillingIntervalToggle';
+import { priceLabel } from '@/lib/pricing';
 
 const BILLING_ROLES = ['owner', 'admin', 'coo'];
 
@@ -12,6 +14,7 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
   const { currentUser } = useCurrentUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState('');
+  const [billingInterval, setBillingInterval] = useState('month');
 
   // Only block once we positively know the tenant lacks the tier. While loading (fields undefined),
   // render the page so entitled tenants never see a flash of the gate.
@@ -22,7 +25,7 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
 
   const upgrade = async (plan) => {
     setLoading(plan);
-    const res = await base44.functions.invoke('stripeBilling', { action: 'create_checkout', plan });
+    const res = await base44.functions.invoke('stripeBilling', { action: 'create_checkout', plan, interval: billingInterval });
     if (res.data?.url) { window.location.href = res.data.url; return; }
     setLoading('');
     toast({ title: 'Could not start checkout', description: res.data?.error || 'Please try again.', variant: 'destructive' });
@@ -44,7 +47,9 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
           : 'Upgrade to Pro to unlock invoicing, change orders, subcontractors, expenses, materials, cost codes, and QuickBooks.'}
       </p>
       {canBill ? (
-        <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-center">
+        <div className="mt-5 flex flex-col items-center gap-3">
+          <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} disabled={!!loading} />
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
           {tier === 'field' && (
             <button
               onClick={() => upgrade('field')}
@@ -52,7 +57,7 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted disabled:opacity-60"
             >
               {loading === 'field' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Upgrade to Field
+              Upgrade to Field ({priceLabel('field', billingInterval)})
             </button>
           )}
           <button
@@ -61,8 +66,9 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:bg-accent/90 disabled:opacity-60"
           >
             {loading === 'pro' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {tier === 'field' ? 'Get Pro' : 'Upgrade to Pro'}
+            {tier === 'field' ? 'Get Pro' : 'Upgrade to Pro'} ({priceLabel('pro', billingInterval)})
           </button>
+          </div>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground mt-5">Ask your account owner to upgrade the plan.</p>

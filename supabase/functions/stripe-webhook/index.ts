@@ -18,6 +18,12 @@ const STRIPE_SECRET = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 const PRO_PRICE = Deno.env.get('STRIPE_PRO_PRICE_ID') ?? '';
 const FIELD_PRICE = Deno.env.get('STRIPE_FIELD_PRICE_ID') ?? '';
+const PRO_PRICE_ANNUAL = Deno.env.get('STRIPE_PRO_ANNUAL_PRICE_ID') ?? '';
+const FIELD_PRICE_ANNUAL = Deno.env.get('STRIPE_FIELD_ANNUAL_PRICE_ID') ?? '';
+const PRO_PRODUCT = Deno.env.get('STRIPE_PRO_PRODUCT_ID') ?? '';
+const FIELD_PRODUCT = Deno.env.get('STRIPE_FIELD_PRODUCT_ID') ?? '';
+const FIELD_PRICES = [FIELD_PRICE, FIELD_PRICE_ANNUAL].filter(Boolean);
+const PRO_PRICES = [PRO_PRICE, PRO_PRICE_ANNUAL].filter(Boolean);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -28,10 +34,25 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { autoRefreshToke
 // (active/trialing/past_due vs canceled/unpaid) is stored separately and gates access in
 // company_access_level(): active/trialing/past_due honor the plan, everything else drops to the
 // free floor (past_due keeps access as a grace window).
+//
+// Resolution order, most explicit first. This used to be "the Field monthly price, else Pro",
+// which silently granted Pro to anyone on any other price - including the annual Field price the
+// moment one existed. Every GuildWright price carries metadata.plan, so a price added later in
+// the Stripe dashboard maps correctly without a redeploy.
 function planForSubscription(sub: Stripe.Subscription): 'pro' | 'field' {
-  const priceId = sub.items?.data?.[0]?.price?.id;
-  if (priceId && priceId === FIELD_PRICE) return 'field';
-  return 'pro'; // PRO_PRICE or unknown -> treat as pro
+  const price = sub.items?.data?.[0]?.price;
+  const priceId = price?.id;
+  if (priceId && FIELD_PRICES.includes(priceId)) return 'field';
+  if (priceId && PRO_PRICES.includes(priceId)) return 'pro';
+  const metaPlan = price?.metadata?.plan;
+  if (metaPlan === 'field' || metaPlan === 'pro') return metaPlan;
+  const productId = typeof price?.product === 'string' ? price.product : price?.product?.id;
+  if (productId && productId === FIELD_PRODUCT) return 'field';
+  if (productId && productId === PRO_PRODUCT) return 'pro';
+  // Nothing identified it. Keep the historical default rather than invent a tier, and make the
+  // gap loud: an untagged price means a paying customer is on a guess.
+  console.error(`stripe-webhook: could not map price ${priceId ?? '(none)'} to a plan; defaulting to pro. Tag the price with metadata.plan.`);
+  return 'pro';
 }
 
 async function applySubscription(sub: Stripe.Subscription, companyIdHint?: string | null) {
