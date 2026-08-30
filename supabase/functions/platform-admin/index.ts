@@ -34,8 +34,12 @@ Deno.serve(async (req) => {
       .from('companies').select('id, name, plan, subscription_status, trial_ends_at, created_at, stripe_subscription_id').order('created_at', { ascending: true });
     if (error) return json({ error: error.message }, { status: 400 });
     const { data: profiles } = await admin.from('user_profiles').select('company_id, role, email, full_name');
-    // Error counts per tenant, so the list can flag tenants that need attention.
-    const { data: errRows } = await admin.from('error_logs').select('company_id');
+    // Error counts per tenant, so the list can flag tenants that need attention. Bounded to the
+    // last 30 days: a lifetime tally never falls back to zero after a fix, so it stops being a
+    // signal and starts being noise you learn to ignore.
+    const ERROR_WINDOW_DAYS = 30;
+    const errorSince = new Date(Date.now() - ERROR_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data: errRows } = await admin.from('error_logs').select('company_id').gte('created_at', errorSince);
     const errCount: Record<string, number> = {};
     (errRows || []).forEach((e: { company_id: string }) => { if (e.company_id) errCount[e.company_id] = (errCount[e.company_id] || 0) + 1; });
     const tenants = (companies || []).map(c => {
@@ -185,7 +189,10 @@ Deno.serve(async (req) => {
 
     // Guided diagnostics: readiness gaps that quietly produce bad output.
     const s = settings.data || {};
-    const errCount = (errors.data || []).length;
+    // Same 30-day window as the tenant list, so the two never disagree.
+    const errorSince = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentErrors = (errors.data || []).filter((e: { created_at: string }) => new Date(e.created_at).getTime() >= errorSince);
+    const errCount = recentErrors.length;
     const activeAcct = (qbo.data?.is_connected && qbo.data) || (xero.data?.is_connected && xero.data) || null;
     const diagnostics = [
       { label: 'Cost codes', status: (costCodes.count || 0) > 0 ? 'ok' : 'warn',
@@ -198,7 +205,7 @@ Deno.serve(async (req) => {
         detail: `${projects.count || 0} total` },
       ...(activeAcct ? [{ label: 'Accounting mapping', status: mapKeys(activeAcct.category_item_map) > 0 ? 'ok' : 'warn',
         detail: mapKeys(activeAcct.category_item_map) > 0 ? 'Categories mapped to accounts' : 'Connected but no category mapping. Invoice lines fall back to one account.' }] : []),
-      { label: 'Recent errors', status: errCount >= 10 ? 'warn' : 'ok', detail: `${errCount}${errCount >= 50 ? '+' : ''} in the last 50 logged` },
+      { label: 'Recent errors', status: errCount >= 10 ? 'warn' : 'ok', detail: `${errCount} in the last 30 days (${(errors.data || []).length} logged in total)` },
       { label: 'Client-facing logo', status: s.logo_url ? 'ok' : 'info',
         detail: s.logo_url ? 'Set' : 'No letterhead logo. Documents render with text only.' },
     ];
@@ -214,6 +221,8 @@ Deno.serve(async (req) => {
   // Guided repair: safe, self-contained fixes an admin can trigger for a tenant.
   //  clear_contact_cache: forget the synced QuickBooks/Xero contact ids so the next invoice push
   //  re-resolves them. Fixes an invoice pointed at a wrong or duplicate accounting contact.
+  //  clear_error_log: discard a tenant's logged client errors once they have been triaged, so the
+  //  error count on the tenant list reflects live problems rather than history.
   if (action === 'repair') {
     const companyId = body.companyId;
     const kind = body.kind;
@@ -224,6 +233,18 @@ Deno.serve(async (req) => {
         actor_user_id: user.id, actor_email: user.email, action: 'repair:clear_contact_cache', company_id: companyId,
       });
       return json({ ok: true, message: 'Accounting contact cache cleared. The next push re-resolves each client.' });
+    }
+    if (kind === 'clear_error_log') {
+      // Triaged errors otherwise sit in the tenant list forever and the count stops meaning
+      // anything. Count first so the audit entry records what was discarded.
+      const { count } = await admin.from('error_logs').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+      const { error } = await admin.from('error_logs').delete().eq('company_id', companyId);
+      if (error) return json({ error: error.message }, { status: 400 });
+      await admin.from('platform_audit_log').insert({
+        actor_user_id: user.id, actor_email: user.email, action: 'repair:clear_error_log', company_id: companyId,
+        details: { cleared: count || 0 },
+      });
+      return json({ ok: true, cleared: count || 0, message: `Cleared ${count || 0} logged error${count === 1 ? '' : 's'} for this tenant.` });
     }
     return json({ error: 'Unknown repair' }, { status: 400 });
   }

@@ -77,6 +77,50 @@ async function ensureFallbackItem(token: string, realmId: string): Promise<strin
   return created?.Item?.Id;
 }
 
+// GuildWright's payment-term codes and the QuickBooks Term each one means. QBO ships the first
+// four by default; a company that deleted one gets it recreated with matching due days.
+const TERM_MAP: Record<string, { name: string; dueDays: number }> = {
+  due_on_receipt: { name: 'Due on receipt', dueDays: 0 },
+  net_10: { name: 'Net 10', dueDays: 10 },
+  net_15: { name: 'Net 15', dueDays: 15 },
+  net_30: { name: 'Net 30', dueDays: 30 },
+};
+
+// Resolve a GuildWright payment term to a QBO Term id so the pushed invoice shows the same terms
+// the client sees on ours. Names are matched case-insensitively because QBO's stock term is
+// "Due on receipt" and a tenant may have retyped it differently.
+async function ensureTermRef(code: string, token: string, realmId: string): Promise<string | null> {
+  const want = TERM_MAP[String(code || '')];
+  if (!want) return null;
+  const all = await qboQuery('SELECT Id, Name FROM Term MAXRESULTS 200', token, realmId);
+  // deno-lint-ignore no-explicit-any
+  const hit = (all?.Term || []).find((t: any) => String(t?.Name || '').trim().toLowerCase() === want.name.toLowerCase());
+  if (hit?.Id) return hit.Id;
+  const created = await qboRequest('POST', '/term', token, realmId, { Name: want.name, DueDays: want.dueDays });
+  return created?.Term?.Id || null;
+}
+
+// Keep the QBO customer's contact details in step with GuildWright.
+//  - Email: filled in only when QBO has none, so a tenant's own edit is never overwritten. Without
+//    this the address never reaches QBO at all: it used to be written only when the parent customer
+//    was first created, and never on the project sub-customer the invoice actually bills.
+//  - Delivery method: the app owns the auto-send toggle, so it owns this. With auto-send off it is
+//    set to None, which is what stops QBO from mailing the client on its own now that it knows an
+//    address (an invoice carrying a recipient has been delivered before with EmailStatus=NotSet).
+async function ensureCustomerContact(
+  customerId: string, email: string | null | undefined, autoSend: boolean, token: string, realmId: string,
+) {
+  const cur = await qboRequest('GET', `/customer/${customerId}`, token, realmId);
+  const c = cur?.Customer;
+  if (!c?.Id) return;
+  // deno-lint-ignore no-explicit-any
+  const patch: any = {};
+  if (email && !c.PrimaryEmailAddr?.Address) patch.PrimaryEmailAddr = { Address: email };
+  const wantMethod = autoSend ? 'Email' : 'None';
+  if (c.PreferredDeliveryMethod !== wantMethod) patch.PreferredDeliveryMethod = wantMethod;
+  if (!Object.keys(patch).length) return;
+  await qboRequest('POST', '/customer', token, realmId, { Id: c.Id, SyncToken: c.SyncToken, sparse: true, ...patch });
+}
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const json = (d: unknown, init: ResponseInit = {}) =>
@@ -133,6 +177,9 @@ Deno.serve(async (req) => {
       const isSov = invoice.billing_mode === 'schedule_of_values';
       if (!isSov && !lineItems.length) return json({ error: 'This invoice has no line items to push.' }, { status: 400 });
       if (isSov && !sovEntries.length) return json({ error: 'This Schedule-of-Values invoice has no billing entries to push.' }, { status: 400 });
+
+      const warnings: string[] = [];
+      const autoSend = settings.auto_send === true;
 
       // Resolve the parent QBO customer (the client): stored id -> find by name -> create.
       let client: any = null;
@@ -193,6 +240,18 @@ Deno.serve(async (req) => {
         }
       }
 
+
+      // Push the client's email and the delivery method onto the QBO customer records (parent and,
+      // when projects sync, the job the invoice bills). This is what a manual Send in QBO reads
+      // from; before this the address never left GuildWright.
+      const contactEmail = invoice.client_email || client?.email;
+      for (const cid of [...new Set([parentCustomerId, customerId])]) {
+        try {
+          await ensureCustomerContact(cid, contactEmail, autoSend, token, realmId);
+        } catch (_) {
+          warnings.push('Could not update the client contact details in QuickBooks. The invoice still pushed.');
+        }
+      }
       // cost code -> QBO item map (by id and by code string)
       const { data: costCodes } = await admin.from('cost_codes').select('id, code, quickbooks_item_id').eq('company_id', companyId);
       const byId = new Map<string, string>();
@@ -225,7 +284,6 @@ Deno.serve(async (req) => {
       } catch (_) { /* if the lookup fails, skip validation and let QBO be the judge */ }
       const validate = (id: string | null) => (id && (!usableItems.size || usableItems.has(id))) ? id : null;
 
-      const warnings: string[] = [];
       let fallbackItemId: string | null = null;
       const resolveItem = async (opts: { costCodeId?: string; costCode?: string; category?: string; label?: string }): Promise<string> => {
         const cat = opts.category ? String(opts.category).toLowerCase() : '';
@@ -295,7 +353,6 @@ Deno.serve(async (req) => {
       }
       if (!lines.length) return json({ error: 'Nothing to bill on this invoice (all amounts are zero).' }, { status: 400 });
 
-      const autoSend = settings.auto_send === true;
       const invPayload: any = { CustomerRef: { value: customerId }, Line: lines };
       // Force the QBO document number to match the GuildWright invoice number.
       // (Requires "Custom transaction numbers" enabled in QuickBooks; otherwise QBO
@@ -303,12 +360,23 @@ Deno.serve(async (req) => {
       if (invoice.invoice_number) invPayload.DocNumber = String(invoice.invoice_number).slice(0, 21);
       if (invoice.issue_date) invPayload.TxnDate = invoice.issue_date;
       if (invoice.due_date) invPayload.DueDate = invoice.due_date;
+      // Carry the payment term across so the QBO invoice reads the same as ours. DueDate is still
+      // sent explicitly above and wins over the term's own due-date math, so the two agree.
+      if (invoice.payment_terms) {
+        try {
+          const termId = await ensureTermRef(invoice.payment_terms, token, realmId);
+          if (termId) invPayload.SalesTermRef = { value: termId };
+          else warnings.push(`"${invoice.payment_terms}" is not a payment term QuickBooks knows; the QBO invoice has no term set.`);
+        } catch (_) {
+          warnings.push('Could not set the payment term on the QuickBooks invoice.');
+        }
+      }
       const billEmail = invoice.client_email || client?.email;
       // Only attach a recipient (BillEmail) when auto-send is ON. QBO will auto-deliver an invoice
       // that carries a BillEmail when the customer's preferred delivery method is Email, even with
-      // EmailStatus=NotSet — which was silently emailing clients while auto-send was off. Leaving
-      // BillEmail off means QBO has no recipient and physically cannot send; the tenant fills it in
-      // when they choose to send from QBO (it auto-populates from the customer record).
+      // EmailStatus=NotSet, which was silently emailing clients while auto-send was off. Leaving
+      // BillEmail off means QBO has no recipient and physically cannot send. The address still
+      // reaches QBO on the customer record above, so a manual Send there is prefilled.
       if (autoSend && billEmail) invPayload.BillEmail = { Address: billEmail };
       // Auto-send off => land as an un-emailed draft for the tenant to review before sending.
       invPayload.EmailStatus = autoSend && billEmail ? 'NeedToSend' : 'NotSet';
