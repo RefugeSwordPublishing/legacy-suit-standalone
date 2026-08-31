@@ -381,6 +381,22 @@ Deno.serve(async (req) => {
       // Auto-send off => land as an un-emailed draft for the tenant to review before sending.
       invPayload.EmailStatus = autoSend && billEmail ? 'NeedToSend' : 'NotSet';
 
+
+      // QuickBooks can deliver an invoice on its own, whatever we send. With company-level online
+      // delivery on, QBO fills BillEmail itself (observed: it carried an address forward from the
+      // customer's previous invoice, one that had never existed in GuildWright) and mails it
+      // minutes after creation, ignoring EmailStatus=NotSet, an absent BillEmail, and the
+      // customer's PreferredDeliveryMethod=None. We cannot stop that from the invoice payload, so
+      // say so plainly rather than reporting a quiet draft while the client gets an email.
+      if (!autoSend) {
+        try {
+          const prefs = await qboQuery('SELECT * FROM Preferences', token, realmId);
+          const eStatus = prefs?.Preferences?.[0]?.SalesFormsPrefs?.ETransactionEnabledStatus;
+          if (eStatus === 'Enabled') {
+            warnings.push('QuickBooks online delivery is turned on for this company, so QuickBooks may email this invoice to the client even though auto-send is off. Turn off online delivery in QuickBooks under Settings, Sales, if you do not want that.');
+          }
+        } catch (_) { /* a preferences read failure must not fail the push */ }
+      }
       const created = await qboRequest('POST', '/invoice', token, realmId, invPayload);
       const qboId = created?.Invoice?.Id;
       const qboDoc = created?.Invoice?.DocNumber;

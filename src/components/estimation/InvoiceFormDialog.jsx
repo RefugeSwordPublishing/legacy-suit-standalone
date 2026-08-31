@@ -549,8 +549,22 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     const invoiceId = savedInvoice?.id || invoice?.id;
     await syncExpenseBilling(invoiceId);
     try {
-      await base44.functions.invoke('quickbooksSyncV2', { action: 'push_invoice', invoice_id: invoiceId });
-      toast({ title: 'Pushed to QuickBooks!', description: 'Invoice, client, and project synced.' });
+      const res = await base44.functions.invoke('quickbooksSyncV2', { action: 'push_invoice', invoice_id: invoiceId });
+      // invoke resolves with { data } even when the function reports a failure, so a returned
+      // error never reaches the catch below. Without this the dialog claimed success on every
+      // push, including ones that failed or came back with warnings.
+      if (res.data?.error) throw new Error(res.data.error);
+      const warnings = res.data?.warnings || [];
+      if (warnings.length) {
+        toast({ title: 'Pushed with warnings', description: warnings.join(' '), variant: 'destructive' });
+      } else {
+        toast({
+          title: 'Pushed to QuickBooks',
+          description: res.data?.emailed
+            ? 'Invoice created and emailed to the client.'
+            : 'Invoice created as a draft to review in QuickBooks.',
+        });
+      }
     } catch (e) {
       toast({ title: 'Saved, but QBO sync failed', description: e.message, variant: 'destructive' });
     }
