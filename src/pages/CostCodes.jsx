@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Search, Hash, Pencil, Trash2 } from 'lucide-react';
 import CostCodeFormDialog from '@/components/estimation/CostCodeFormDialog';
 import CatalogManager from '@/pages/CatalogManager';
+import { useCurrentUser } from '@/lib/UserContext';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -16,6 +17,10 @@ import {
 
 export default function CostCodes() {
   const qc = useQueryClient();
+  // The catalog is a Field feature but has always lived on this Pro page, which left Field
+  // tenants with no way to manage it. The page is Field-accessible now; cost codes stay Pro.
+  const { currentUser } = useCurrentUser();
+  const isPro = currentUser?.is_pro !== false;
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editCode, setEditCode] = useState(null);
@@ -24,6 +29,7 @@ export default function CostCodes() {
   const { data: costCodes = [], isLoading } = useQuery({
     queryKey: ['cost-codes'],
     queryFn: () => base44.entities.CostCode.list('code'),
+    enabled: isPro,
   });
 
   const grouped = costCodes
@@ -55,12 +61,12 @@ export default function CostCodes() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-butler text-foreground">Cost Codes & Catalog</h1>
+        <h1 className="text-2xl font-butler text-foreground">{isPro ? 'Cost Codes & Catalog' : 'Catalog'}</h1>
       </div>
 
       <Tabs defaultValue="catalog">
         <TabsList className="mb-5">
-          <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>
+          {isPro && <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>}
           <TabsTrigger value="catalog">Catalog</TabsTrigger>
         </TabsList>
 

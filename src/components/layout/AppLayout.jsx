@@ -69,7 +69,7 @@ export default function AppLayout() {
     ...(isPro && canReadInvoices ? [{ path: '/invoices', label: 'Invoices', icon: Receipt }] : []),
     ...(isPro && canReadExpenses ? [{ path: '/expenses', label: 'Expenses', icon: DollarSign }] : []),
     ...(canReadClients ? [{ path: '/clients', label: 'Clients', icon: Building2 }] : []),
-    ...(isPro && isHighRole ? [{ path: '/cost-codes', label: 'Cost Codes', icon: Hash }] : []),
+    ...(hasField && isHighRole ? [{ path: '/cost-codes', label: isPro ? 'Cost Codes' : 'Catalog', icon: Hash }] : []),
   ] : [];
   const isEstimationActive = estimationSubItems.some(i => location.pathname === i.path);
 
@@ -139,7 +139,7 @@ export default function AppLayout() {
         { label: 'Expenses', path: '/expenses', icon: DollarSign, keywords: ['receipts', 'costs', 'spending'], show: isPro && !isSiteManager && canReadExpenses },
         { label: 'Clients', path: '/clients', icon: Building2, keywords: ['customers'], show: !isSiteManager && canReadClients },
         { label: 'Subcontractors', path: '/sub-contractors', icon: Users, keywords: ['subs', 'subcontractor'], show: isPro && canReadSubcontractors },
-        { label: 'Cost Codes', path: '/cost-codes', icon: Hash, keywords: [], show: isPro && isHighRole },
+        { label: isPro ? 'Cost Codes' : 'Catalog', path: '/cost-codes', icon: Hash, keywords: ['catalog', 'price book'], show: hasField && isHighRole },
         { label: 'Reports', path: '/reports', icon: BarChart2, keywords: ['analytics', 'job costing', 'profit'], show: isPro && (isHighRole || canReadReports) },
         { label: 'Client Requests', path: '/client-requests', icon: Inbox, keywords: ['requests'], show: canReviewRequests },
         { label: 'Phase Approvals', path: '/phase-approvals', icon: ShieldCheck, keywords: ['approvals'], show: isHighRole },

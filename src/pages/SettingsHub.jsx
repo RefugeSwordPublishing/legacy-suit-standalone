@@ -26,7 +26,7 @@ const MODULES = [
       { path: '/invoice-settings', label: 'Invoices & Estimates', icon: Receipt, desc: 'Invoice numbering, plus estimate payment schedule & terms', roles: ['owner', 'admin'] },
       { path: '/qbo-settings', label: 'QuickBooks', icon: Link2, desc: 'Connect QBO and map cost codes to items', roles: ['owner', 'admin'] },
       { path: '/xero-settings', label: 'Xero', icon: Link2, desc: 'Connect Xero and map accounts', roles: ['owner', 'admin'] },
-      { path: '/cost-codes', label: 'Cost Codes', icon: Hash, desc: 'Cost codes for estimates and expenses', roles: ['owner', 'coo', 'admin'] },
+      { path: '/cost-codes', label: 'Cost Codes & Catalog', icon: Hash, desc: 'Your price book, and cost codes for estimates and expenses', roles: ['owner', 'coo', 'admin'] },
       { path: '/templates', label: 'Templates', icon: ClipboardList, desc: 'Estimate and task templates' },
     ],
   },

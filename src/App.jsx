@@ -143,7 +143,7 @@ const AuthenticatedApp = () => {
         <Route path="/timecard-report" element={<TimecardReport />} />
         <Route path="/sub-contractors" element={<ProtectedRoute tier="pro" proFeature="Subcontractors" featureKey="subcontractors"><SubContractors /></ProtectedRoute>} />
         <Route path="/clients" element={<ProtectedRoute tier="field" proFeature="Clients" featureKey="clients"><Clients /></ProtectedRoute>} />
-        <Route path="/cost-codes" element={<ProtectedRoute tier="pro" proFeature="Cost Codes"><CostCodes /></ProtectedRoute>} />
+        <Route path="/cost-codes" element={<ProtectedRoute tier="field" proFeature="The catalog"><CostCodes /></ProtectedRoute>} />
         <Route path="/estimates" element={<ProtectedRoute tier="field" proFeature="Estimates" featureKey="estimates"><Estimates /></ProtectedRoute>} />
         <Route path="/estimates/templates/new" element={<ProtectedRoute tier="field" proFeature="Estimates" featureKey="estimates"><TemplateBuilder /></ProtectedRoute>} />
         <Route path="/estimates/templates/:id" element={<ProtectedRoute tier="field" proFeature="Estimates" featureKey="estimates"><TemplateBuilder /></ProtectedRoute>} />
