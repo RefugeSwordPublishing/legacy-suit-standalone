@@ -197,12 +197,11 @@ instruction. Same footage, different edit. Plan the shots for both before record
 
 - The QuickBooks item mapping screen. It belongs to chapter 6 and needs a live QBO connection.
 
-### Note before recording
+### Tier note
 
-The catalog is a **Field** feature, but the only place to manage it is this **Pro-gated** page, and
-there is no `/catalog` route. A Field tenant can pull catalog items from inside the estimate
-builder but cannot edit or retire them. Either record this chapter as Pro only, or fix the gap
-first and record it once.
+A Pro tenant sees two tabs, Cost Codes and Catalog. A Field tenant sees only Catalog, and the
+heading reads "Catalog". Record on Pro and say early that cost codes are the Pro half, so one take
+serves both audiences.
 
 ---
 
@@ -279,22 +278,143 @@ demonstrate it. Record in this order or the last third of the chapter has nothin
 
 ---
 
-## Chapters 5 and 6: outline
+## Chapter 5: Expenses and categories
 
-**5. Expenses and categories.** Categories first at `/expense-categories`, including what a cost
-bucket decides on the Financials tab. Then a receipt scanned with the phone camera, the billable
-toggle, and the unbilled total.
+**Length:** 3 to 4 minutes. **Tier:** Pro. **Routes:** `/expense-categories`, then `/expenses`.
+**Starting state:** a live project from chapter 4, no expenses logged yet. A new tenant already has
+Materials and Subcontractor as categories, so do not pretend the list starts empty.
 
-**6. Invoicing and QuickBooks.** Import billable expenses and estimate lines, progress bill with a
-schedule of values, then connect QBO and push. Be careful and explicit about the auto-send toggle
-and current QuickBooks online-delivery behavior.
+### Shots
+
+1. **Settings, Expense Categories.** Show the two that ship with a new account.
+   Say: "This is the list your crew picks from when they log a receipt. Every account starts with
+   Materials and Subcontractor."
+
+2. **Add a category** in **New category**, something real like Permits or Dump Fees, and set its
+   **Cost bucket**.
+   Say: "The bucket is the part worth understanding. It decides where this spend lands on a
+   project's Financials tab."
+
+3. **Show the explanation already on the page**, then say it in your own words.
+   Say: "Set a category to Subcontractor and its spend lands on the subcontractor line. Materials,
+   Labor, and Other all roll into materials and costs. So Permits still counts toward what the job
+   actually cost you, it just isn't a sub."
+
+4. **Financial, Expenses.** Empty state.
+   Say: "Nothing logged yet. Here's the fastest way to change that."
+
+5. **Add Expense, then Take Photo.** The camera opens inside the app. Capture a prop receipt.
+   Say: "That's the camera in the app, not your phone's camera roll. The crew snaps it at the
+   supply house and moves on."
+
+6. **Let the extraction run.** Show the **Extracting...** indicator, then the fields filling in:
+   **Vendor**, **Date**, **Total Amount**, and the **Line Items** underneath.
+   Say: "It reads the receipt and fills the form. Vendor, date, total, and the line items."
+
+7. **Correct the total on camera.** Do this deliberately, do not edit it out.
+   Say: "Always check the total. Faded thermal receipts are the hard case, and a receipt is worth
+   more than a guess."
+
+8. **Set Category, Project, and Cost Code.**
+   Say: "Category and project are what make this show up in job costing. The cost code is optional
+   and leaving it blank is safe."
+
+9. **Show Billable to client**, already on.
+   Say: "Billable is on by default. Leave it on for anything the client is paying for, turn it off
+   for a tool you bought for yourself."
+
+10. **Save, then show the header stats:** **Total Shown** and **Unbilled Billable**.
+    Say: "That unbilled number is the one to watch. It's money sitting on a job that nobody has
+    invoiced yet."
+
+11. **Filter with All Projects.**
+    Say: "Filter by job when you want to see what one address has cost you."
+
+12. **Close on the unbilled total.**
+    Say: "Next: turning that into an invoice and getting it into QuickBooks."
+
+### Say this out loud
+
+- Extraction starts on its own when the receipt is attached. There is no Scan button, so do not say
+  "click scan" or a viewer will hunt for one.
+- Photos from an iPhone are converted automatically, so HEIC files just work.
+- Checking the total is not optional. Say it while doing it.
+
+### Do not show
+
+- A real receipt with a partial card number, a signature, or a client's name on it. Use a prop.
+- Any Legacy vendor or amount.
 
 ---
 
-## Open question for chapter 6
+## Chapter 6: Invoicing and QuickBooks
 
-Until the QuickBooks online delivery issue is settled, do not record a segment that claims a push
-with auto-send off will not email the client. On the current QBO company it does. Either resolve
-it first or script that segment to say the invoice lands in QuickBooks for review without making a
-promise about email.
+**Length:** 4 to 5 minutes, or split at shot 6. **Tier:** Pro.
+**Routes:** `/qbo-settings`, then `/invoices`.
+**Starting state:** an approved estimate from chapter 4 and unbilled billable expenses from
+chapter 5, both on the same project.
 
+### Read this before recording
+
+Do not claim that a push with auto-send off will not email the client. On a QuickBooks company
+with online delivery enabled, QuickBooks fills in a recipient itself and sends anyway, whatever
+GuildWright asks for. Script shot 3 to describe what GuildWright does, not what QuickBooks will do.
+
+### Shots
+
+1. **Settings, QuickBooks.** Show **QBO Integration** and connect.
+   Say: "One connection per company. Sign in to Intuit, authorize, done."
+
+2. **Sync Settings.** Show the toggles: **Invoices**, **Clients**, **Projects**.
+   Say: "Turn Projects on and each job becomes its own sub-customer under the client in
+   QuickBooks. Every invoice for that address nests under it, so your books read the way your jobs
+   do."
+
+3. **Auto-send to client**, off by default.
+   Say: "Auto-send controls whether GuildWright emails the invoice when it pushes. Off means
+   GuildWright creates it and leaves it for you to review. Check your QuickBooks delivery settings
+   too, because QuickBooks has its own opinion about emailing invoices."
+
+4. **Map categories and cost codes to QuickBooks items.**
+   Say: "Map each category to the product or service it should hit. Anything unmapped falls back
+   to a generic service item rather than failing, so a blank never breaks a push."
+
+5. **Financial, Invoices, New Invoice.** Set **Client**, **Project**, **Invoice Number**,
+   **Issue Date**, **Payment Terms**.
+   Say: "The number comes from the project's own prefix, so each job counts its own invoices."
+
+6. **Import Line Items** from the approved estimate, then import the unbilled billable expenses.
+   Say: "Pull the estimate in, then pull in the receipts your crew logged. That's chapter four and
+   chapter five landing in the same document."
+
+7. **Billing Mode.** Show **Schedule of Values** against line items.
+   Say: "Schedule of values is how you progress bill. Instead of one invoice for everything, you
+   bill a percentage of each category as the work gets done."
+
+8. **On a second invoice for the same project, show the Billed to date panel**, then the per line
+   **Bill this invoice (%)** and **Bill this invoice ($)** fields.
+   Say: "GuildWright shows what's already been billed on this job before you type a number, so you
+   don't bill the same work twice. Enter a percentage or a dollar amount, whichever you think in."
+
+9. **Push to QuickBooks.** Show the result toast.
+   Say: "That creates the customer, nests the project under it, and builds the invoice with your
+   mapped items."
+
+10. **Back on Invoices, Sync Payments.**
+    Say: "When a client pays in QuickBooks, this pulls the status back. It also runs on its own
+    every night, so paid invoices stop looking outstanding whether you remember or not."
+
+11. **Close on a paid invoice.**
+    Say: "Estimate, crew, receipts, invoice, paid. One job, one system."
+
+### Say this out loud
+
+- An unmapped cost code falls back to a generic service item. This is the reassurance that lets
+  people start pushing before their mapping is perfect.
+- Sync Payments is the dependable path for paid status. Webhooks get dropped; the pull does not.
+
+### Do not show
+
+- The QuickBooks account with real Legacy customers in it. Connect a sandbox or a throwaway QBO
+  company for recording.
+- Any client email address on the invoice or in the QuickBooks customer record.
