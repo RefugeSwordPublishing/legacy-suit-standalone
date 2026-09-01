@@ -15,7 +15,21 @@ const RECONCILE_SECRET = Deno.env.get('PUSH_TRIGGER_SECRET') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-const QBO_BASE = 'https://quickbooks.api.intuit.com/v3/company';
+// A sandbox company is a different host entirely, and the connection records which one it is.
+const QBO_HOSTS: Record<string, string> = {
+  production: 'https://quickbooks.api.intuit.com/v3/company',
+  sandbox: 'https://sandbox-quickbooks.api.intuit.com/v3/company',
+};
+const qboBase = (env?: string) => QBO_HOSTS[env === 'sandbox' ? 'sandbox' : 'production'];
+
+// Sandbox companies authenticate with the app's Development keys. Fall back to the production
+// pair when the sandbox secrets are not set, so nothing changes until they are configured.
+const SANDBOX_CLIENT_ID = Deno.env.get('QUICKBOOKS_SANDBOX_CLIENT_ID') ?? '';
+const SANDBOX_CLIENT_SECRET = Deno.env.get('QUICKBOOKS_SANDBOX_CLIENT_SECRET') ?? '';
+const oauthCreds = (env?: string) =>
+  env === 'sandbox' && SANDBOX_CLIENT_ID && SANDBOX_CLIENT_SECRET
+    ? { id: SANDBOX_CLIENT_ID, secret: SANDBOX_CLIENT_SECRET }
+    : { id: CLIENT_ID, secret: CLIENT_SECRET };
 // A paid invoice can carry a sub-cent residual from per-line rounding; treat <= 1 cent as settled.
 const PAID_TOLERANCE = 0.01;
 
@@ -26,7 +40,8 @@ const CORS = {
 
 // deno-lint-ignore no-explicit-any
 async function refreshAccessToken(admin: any, settings: any) {
-  const credentials = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`);
+  const { id, secret } = oauthCreds(settings.environment);
+  const credentials = btoa(`${id}:${secret}`);
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
@@ -51,9 +66,9 @@ async function getValidToken(admin: any, settings: any) {
   return settings.access_token as string;
 }
 
-async function qboGet(path: string, token: string, realmId: string) {
+async function qboGet(path: string, token: string, realmId: string, env?: string) {
   const sep = path.includes('?') ? '&' : '?';
-  const res = await fetch(`${QBO_BASE}/${realmId}${path}${sep}minorversion=65`, {
+  const res = await fetch(`${qboBase(env)}/${realmId}${path}${sep}minorversion=65`, {
     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
   });
   const data = await res.json();
@@ -79,7 +94,7 @@ async function reconcileCompany(admin: any, settings: any) {
   const markedPaid: string[] = [];
   for (const inv of invoices ?? []) {
     try {
-      const qbo = (await qboGet(`/invoice/${inv.quickbooks_invoice_id}`, token, settings.realm_id))?.Invoice;
+      const qbo = (await qboGet(`/invoice/${inv.quickbooks_invoice_id}`, token, settings.realm_id, settings.environment))?.Invoice;
       if (!qbo) continue;
       const balance = Number(qbo.Balance ?? 0);
       const total = Number(qbo.TotalAmt ?? 0);

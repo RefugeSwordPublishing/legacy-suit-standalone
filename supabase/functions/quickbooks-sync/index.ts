@@ -12,13 +12,28 @@ const CORS = {
 const CLIENT_ID = Deno.env.get('QUICKBOOKS_CLIENT_ID') ?? '';
 const CLIENT_SECRET = Deno.env.get('QUICKBOOKS_CLIENT_SECRET') ?? '';
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
-const QBO_BASE = 'https://quickbooks.api.intuit.com/v3/company';
+// A sandbox company is a different host entirely, and the connection records which one it is.
+const QBO_HOSTS: Record<string, string> = {
+  production: 'https://quickbooks.api.intuit.com/v3/company',
+  sandbox: 'https://sandbox-quickbooks.api.intuit.com/v3/company',
+};
+const qboBase = (env?: string) => QBO_HOSTS[env === 'sandbox' ? 'sandbox' : 'production'];
+
+// Sandbox companies authenticate with the app's Development keys. Fall back to the production
+// pair when the sandbox secrets are not set, so nothing changes until they are configured.
+const SANDBOX_CLIENT_ID = Deno.env.get('QUICKBOOKS_SANDBOX_CLIENT_ID') ?? '';
+const SANDBOX_CLIENT_SECRET = Deno.env.get('QUICKBOOKS_SANDBOX_CLIENT_SECRET') ?? '';
+const oauthCreds = (env?: string) =>
+  env === 'sandbox' && SANDBOX_CLIENT_ID && SANDBOX_CLIENT_SECRET
+    ? { id: SANDBOX_CLIENT_ID, secret: SANDBOX_CLIENT_SECRET }
+    : { id: CLIENT_ID, secret: CLIENT_SECRET };
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // deno-lint-ignore no-explicit-any
 async function refreshAccessToken(admin: any, settings: any) {
-  const credentials = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`);
+  const { id, secret } = oauthCreds(settings.environment);
+  const credentials = btoa(`${id}:${secret}`);
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Authorization': `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
@@ -43,12 +58,14 @@ async function getValidToken(admin: any, settings: any) {
   return settings.access_token as string;
 }
 
-async function qboRequest(method: string, path: string, token: string, realmId: string, body?: unknown) {
+type QboCtx = { token: string; realmId: string; base: string };
+
+async function qboRequest(method: string, path: string, ctx: QboCtx, body?: unknown) {
   const sep = path.includes('?') ? '&' : '?';
-  const url = `${QBO_BASE}/${realmId}${path}${sep}minorversion=65`;
+  const url = `${ctx.base}/${ctx.realmId}${path}${sep}minorversion=65`;
   const res = await fetch(url, {
     method,
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { 'Authorization': `Bearer ${ctx.token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json();
@@ -58,20 +75,20 @@ async function qboRequest(method: string, path: string, token: string, realmId: 
 
 // Run a QBO SQL-ish query, return the QueryResponse object.
 // deno-lint-ignore no-explicit-any
-async function qboQuery(sql: string, token: string, realmId: string): Promise<any> {
-  const r = await qboRequest('GET', `/query?query=${encodeURIComponent(sql)}`, token, realmId);
+async function qboQuery(sql: string, ctx: QboCtx): Promise<any> {
+  const r = await qboRequest('GET', `/query?query=${encodeURIComponent(sql)}`, ctx);
   return r?.QueryResponse ?? {};
 }
 
 // QBO invoice lines require an ItemRef. For lines whose cost code isn't mapped to a
 // QBO item, fall back to a single generic Service item (found or created once).
-async function ensureFallbackItem(token: string, realmId: string): Promise<string> {
-  const found = await qboQuery(`SELECT Id FROM Item WHERE Name = 'GuildWright Services' MAXRESULTS 1`, token, realmId);
+async function ensureFallbackItem(ctx: QboCtx): Promise<string> {
+  const found = await qboQuery(`SELECT Id FROM Item WHERE Name = 'GuildWright Services' MAXRESULTS 1`, ctx);
   if (found?.Item?.[0]?.Id) return found.Item[0].Id;
-  const acct = await qboQuery(`SELECT Id FROM Account WHERE AccountType = 'Income' MAXRESULTS 1`, token, realmId);
+  const acct = await qboQuery(`SELECT Id FROM Account WHERE AccountType = 'Income' MAXRESULTS 1`, ctx);
   const incomeId = acct?.Account?.[0]?.Id;
   if (!incomeId) throw new Error('No Income account found in QuickBooks to attach a default item to.');
-  const created = await qboRequest('POST', '/item', token, realmId, {
+  const created = await qboRequest('POST', '/item', ctx, {
     Name: 'GuildWright Services', Type: 'Service', IncomeAccountRef: { value: incomeId },
   });
   return created?.Item?.Id;
@@ -89,14 +106,14 @@ const TERM_MAP: Record<string, { name: string; dueDays: number }> = {
 // Resolve a GuildWright payment term to a QBO Term id so the pushed invoice shows the same terms
 // the client sees on ours. Names are matched case-insensitively because QBO's stock term is
 // "Due on receipt" and a tenant may have retyped it differently.
-async function ensureTermRef(code: string, token: string, realmId: string): Promise<string | null> {
+async function ensureTermRef(code: string, ctx: QboCtx): Promise<string | null> {
   const want = TERM_MAP[String(code || '')];
   if (!want) return null;
-  const all = await qboQuery('SELECT Id, Name FROM Term MAXRESULTS 200', token, realmId);
+  const all = await qboQuery('SELECT Id, Name FROM Term MAXRESULTS 200', ctx);
   // deno-lint-ignore no-explicit-any
   const hit = (all?.Term || []).find((t: any) => String(t?.Name || '').trim().toLowerCase() === want.name.toLowerCase());
   if (hit?.Id) return hit.Id;
-  const created = await qboRequest('POST', '/term', token, realmId, { Name: want.name, DueDays: want.dueDays });
+  const created = await qboRequest('POST', '/term', ctx, { Name: want.name, DueDays: want.dueDays });
   return created?.Term?.Id || null;
 }
 
@@ -108,9 +125,9 @@ async function ensureTermRef(code: string, token: string, realmId: string): Prom
 //    set to None, which is what stops QBO from mailing the client on its own now that it knows an
 //    address (an invoice carrying a recipient has been delivered before with EmailStatus=NotSet).
 async function ensureCustomerContact(
-  customerId: string, email: string | null | undefined, autoSend: boolean, token: string, realmId: string,
+  customerId: string, email: string | null | undefined, autoSend: boolean, ctx: QboCtx,
 ) {
-  const cur = await qboRequest('GET', `/customer/${customerId}`, token, realmId);
+  const cur = await qboRequest('GET', `/customer/${customerId}`, ctx);
   const c = cur?.Customer;
   if (!c?.Id) return;
   // deno-lint-ignore no-explicit-any
@@ -119,7 +136,7 @@ async function ensureCustomerContact(
   const wantMethod = autoSend ? 'Email' : 'None';
   if (c.PreferredDeliveryMethod !== wantMethod) patch.PreferredDeliveryMethod = wantMethod;
   if (!Object.keys(patch).length) return;
-  await qboRequest('POST', '/customer', token, realmId, { Id: c.Id, SyncToken: c.SyncToken, sparse: true, ...patch });
+  await qboRequest('POST', '/customer', ctx, { Id: c.Id, SyncToken: c.SyncToken, sparse: true, ...patch });
 }
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -145,10 +162,11 @@ Deno.serve(async (req) => {
     try { token = await getValidToken(admin, settings); }
     catch (err) { return json({ error: 'Failed to refresh QBO token', details: (err as Error).message }, { status: 401 }); }
     const realmId = settings.realm_id;
+    const ctx: QboCtx = { token, realmId, base: qboBase(settings.environment) };
 
     if (action === 'list_accounts') {
       const query = encodeURIComponent(`SELECT * FROM Account WHERE AccountType = 'Income' MAXRESULTS 100`);
-      const result = await qboRequest('GET', `/query?query=${query}`, token, realmId);
+      const result = await qboRequest('GET', `/query?query=${query}`, ctx);
       const accounts = result?.QueryResponse?.Account ?? [];
       // deno-lint-ignore no-explicit-any
       return json({ accounts: accounts.map((a: any) => ({ Id: a.Id, Name: a.Name, AccountType: a.AccountType })) });
@@ -156,7 +174,7 @@ Deno.serve(async (req) => {
 
     if (action === 'list_items') {
       const query = encodeURIComponent(`SELECT * FROM Item WHERE Active = true MAXRESULTS 1000`);
-      const result = await qboRequest('GET', `/query?query=${query}`, token, realmId);
+      const result = await qboRequest('GET', `/query?query=${query}`, ctx);
       const items = result?.QueryResponse?.Item ?? [];
       // QBO "Category" items are grouping headers and cannot be used on an invoice line
       // (referencing one throws "Invalid Reference Id", code 2500). Only offer sellable items.
@@ -192,12 +210,12 @@ Deno.serve(async (req) => {
       let parentCustomerId = client?.quickbooks_customer_id || null;
       if (!parentCustomerId) {
         const esc = String(clientName).replace(/'/g, "\\'");
-        const found = await qboQuery(`SELECT Id FROM Customer WHERE DisplayName = '${esc}' MAXRESULTS 1`, token, realmId);
+        const found = await qboQuery(`SELECT Id FROM Customer WHERE DisplayName = '${esc}' MAXRESULTS 1`, ctx);
         parentCustomerId = found?.Customer?.[0]?.Id || null;
         if (!parentCustomerId) {
           const cp: any = { DisplayName: clientName };
           if (clientEmail) cp.PrimaryEmailAddr = { Address: clientEmail };
-          const createdC = await qboRequest('POST', '/customer', token, realmId, cp);
+          const createdC = await qboRequest('POST', '/customer', ctx, cp);
           parentCustomerId = createdC?.Customer?.Id || null;
         }
         if (parentCustomerId && client?.id) {
@@ -218,17 +236,17 @@ Deno.serve(async (req) => {
           if (!subId) {
             const escP = String(projectName).replace(/'/g, "\\'");
             const foundSub = await qboQuery(
-              `SELECT Id, ParentRef FROM Customer WHERE DisplayName = '${escP}' AND Job = true MAXRESULTS 5`, token, realmId);
+              `SELECT Id, ParentRef FROM Customer WHERE DisplayName = '${escP}' AND Job = true MAXRESULTS 5`, ctx);
             subId = (foundSub?.Customer || []).find((c: any) => c?.ParentRef?.value === String(parentCustomerId))?.Id || null;
             if (!subId) {
               // QBO requires a globally-unique DisplayName; if the plain project name collides,
               // fall back to "Client - Project".
               const base = { Job: true, ParentRef: { value: parentCustomerId }, BillWithParent: true };
               try {
-                const c = await qboRequest('POST', '/customer', token, realmId, { ...base, DisplayName: projectName });
+                const c = await qboRequest('POST', '/customer', ctx, { ...base, DisplayName: projectName });
                 subId = c?.Customer?.Id || null;
               } catch (_) {
-                const c = await qboRequest('POST', '/customer', token, realmId, { ...base, DisplayName: `${clientName} - ${projectName}` });
+                const c = await qboRequest('POST', '/customer', ctx, { ...base, DisplayName: `${clientName} - ${projectName}` });
                 subId = c?.Customer?.Id || null;
               }
             }
@@ -247,7 +265,7 @@ Deno.serve(async (req) => {
       const contactEmail = invoice.client_email || client?.email;
       for (const cid of [...new Set([parentCustomerId, customerId])]) {
         try {
-          await ensureCustomerContact(cid, contactEmail, autoSend, token, realmId);
+          await ensureCustomerContact(cid, contactEmail, autoSend, ctx);
         } catch (_) {
           warnings.push('Could not update the client contact details in QuickBooks. The invoice still pushed.');
         }
@@ -277,7 +295,7 @@ Deno.serve(async (req) => {
       // fails the whole push. Validate every mapped id against this set and fall back cleanly.
       const usableItems = new Set<string>();
       try {
-        const itemsRes = await qboQuery(`SELECT Id, Type FROM Item WHERE Active = true MAXRESULTS 1000`, token, realmId);
+        const itemsRes = await qboQuery(`SELECT Id, Type FROM Item WHERE Active = true MAXRESULTS 1000`, ctx);
         for (const it of (itemsRes?.Item || [])) {
           if (it?.Id && it?.Type !== 'Category') usableItems.add(String(it.Id));
         }
@@ -297,7 +315,7 @@ Deno.serve(async (req) => {
           warnings.push(`"${opts.label || opts.category || opts.costCode || 'A line'}" is mapped to a QuickBooks item that can't be invoiced (it's a category or was removed). Used the default item instead - remap it to a product/service.`);
         }
         if (!itemId) {
-          if (!fallbackItemId) fallbackItemId = await ensureFallbackItem(token, realmId);
+          if (!fallbackItemId) fallbackItemId = await ensureFallbackItem(ctx);
           itemId = fallbackItemId;
         }
         return itemId as string;
@@ -364,7 +382,7 @@ Deno.serve(async (req) => {
       // sent explicitly above and wins over the term's own due-date math, so the two agree.
       if (invoice.payment_terms) {
         try {
-          const termId = await ensureTermRef(invoice.payment_terms, token, realmId);
+          const termId = await ensureTermRef(invoice.payment_terms, ctx);
           if (termId) invPayload.SalesTermRef = { value: termId };
           else warnings.push(`"${invoice.payment_terms}" is not a payment term QuickBooks knows; the QBO invoice has no term set.`);
         } catch (_) {
@@ -390,14 +408,14 @@ Deno.serve(async (req) => {
       // say so plainly rather than reporting a quiet draft while the client gets an email.
       if (!autoSend) {
         try {
-          const prefs = await qboQuery('SELECT * FROM Preferences', token, realmId);
+          const prefs = await qboQuery('SELECT * FROM Preferences', ctx);
           const eStatus = prefs?.Preferences?.[0]?.SalesFormsPrefs?.ETransactionEnabledStatus;
           if (eStatus === 'Enabled') {
             warnings.push('QuickBooks online delivery is turned on for this company, so QuickBooks may email this invoice to the client even though auto-send is off. Turn off online delivery in QuickBooks under Settings, Sales, if you do not want that.');
           }
         } catch (_) { /* a preferences read failure must not fail the push */ }
       }
-      const created = await qboRequest('POST', '/invoice', token, realmId, invPayload);
+      const created = await qboRequest('POST', '/invoice', ctx, invPayload);
       const qboId = created?.Invoice?.Id;
       const qboDoc = created?.Invoice?.DocNumber;
       const qboUrl = qboId ? `https://app.qbo.intuit.com/app/invoice?txnId=${qboId}` : null;
@@ -406,7 +424,7 @@ Deno.serve(async (req) => {
       let emailed = false;
       if (autoSend && qboId && billEmail) {
         try {
-          await qboRequest('POST', `/invoice/${qboId}/send?sendTo=${encodeURIComponent(billEmail)}`, token, realmId);
+          await qboRequest('POST', `/invoice/${qboId}/send?sendTo=${encodeURIComponent(billEmail)}`, ctx);
           emailed = true;
         } catch (_) { /* leave as draft in QBO; report not emailed */ }
       }

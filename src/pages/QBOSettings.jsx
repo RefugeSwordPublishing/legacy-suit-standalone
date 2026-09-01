@@ -49,6 +49,8 @@ export default function QBOSettings() {
         action: 'exchange_code',
         code,
         realm_id: realmId,
+        // Intuit echoes `state` back, which is how the chosen environment survives the redirect.
+        environment: (params.get('state') || '').split(':')[1] === 'sandbox' ? 'sandbox' : 'production',
       }).then(res => {
         if (res.data?.success) {
           toast({ title: 'QuickBooks Connected!', description: 'Your account is now linked.' });
@@ -66,9 +68,9 @@ export default function QBOSettings() {
     }
   }, []);
 
-  const handleConnect = async () => {
+  const handleConnect = async (environment = 'production') => {
     setConnecting(true);
-    const res = await base44.functions.invoke('quickbooksAuth', { action: 'get_auth_url' });
+    const res = await base44.functions.invoke('quickbooksAuth', { action: 'get_auth_url', environment });
     const authUrl = res.data?.url;
     if (!authUrl) {
       toast({ title: 'Could not get auth URL', variant: 'destructive' });
@@ -156,16 +158,24 @@ export default function QBOSettings() {
             </div>
           </div>
           {!isConnected && (
-            <Button size="sm" onClick={handleConnect} disabled={connecting} className="gap-2">
+            <>
+            <Button size="sm" onClick={() => handleConnect('production')} disabled={connecting} className="gap-2">
               <ExternalLink className="w-4 h-4" />
               {connecting ? 'Connecting...' : 'Connect QuickBooks'}
             </Button>
+            {currentUser?.is_platform_admin && (
+              <Button size="sm" variant="ghost" onClick={() => handleConnect('sandbox')} disabled={connecting}
+                className="gap-2 ml-2 text-muted-foreground" title="Connect an Intuit sandbox company instead of a real one">
+                Connect sandbox
+              </Button>
+            )}
+            </>
           )}
         </div>
 
         {isConnected && (
           <div className="flex gap-2 pt-1 border-t border-border">
-            <Button size="sm" variant="outline" onClick={handleConnect} disabled={connecting} className="gap-2">
+            <Button size="sm" variant="outline" onClick={() => handleConnect('production')} disabled={connecting} className="gap-2">
               <ExternalLink className="w-4 h-4" />
               {connecting ? 'Redirecting...' : 'Switch Account'}
             </Button>
