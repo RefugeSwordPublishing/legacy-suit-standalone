@@ -394,6 +394,36 @@ Deno.serve(async (req) => {
   }
 
   // Support queue: tenant-submitted issue reports across all tenants.
+  if (action === 'list_deletion_requests') {
+    const { data, error } = await admin
+      .from('account_deletion_requests')
+      .select('*')
+      .in('status', ['open', 'in_progress'])
+      .order('created_at', { ascending: true });
+    if (error) return json({ error: error.message }, { status: 400 });
+    const ids = [...new Set((data || []).map((r: { company_id: string }) => r.company_id))];
+    const { data: companies } = ids.length
+      ? await admin.from('companies').select('id, name').in('id', ids)
+      : { data: [] };
+    const nameOf = new Map((companies || []).map((c: { id: string; name: string }) => [c.id, c.name]));
+    return json({ requests: (data || []).map((r: Record<string, unknown>) => ({ ...r, company_name: nameOf.get(r.company_id as string) || null })) });
+  }
+
+  if (action === 'resolve_deletion_request') {
+    const id = body.requestId;
+    const status = ['in_progress', 'completed', 'cancelled'].includes(body.status) ? body.status : null;
+    if (!id || !status) return json({ error: 'requestId and a valid status are required' }, { status: 400 });
+    const patch: Record<string, unknown> = { status, notes: body.notes ?? null };
+    if (status === 'completed' || status === 'cancelled') patch.resolved_at = new Date().toISOString();
+    const { error } = await admin.from('account_deletion_requests').update(patch).eq('id', id);
+    if (error) return json({ error: error.message }, { status: 400 });
+    await admin.from('platform_audit_log').insert({
+      actor_user_id: user.id, actor_email: user.email, action: 'deletion_request:' + status,
+      details: { request_id: id, notes: body.notes ?? null },
+    });
+    return json({ ok: true });
+  }
+
   if (action === 'list_tickets') {
     const { data: tickets } = await admin
       .from('support_tickets').select('*').order('created_at', { ascending: false }).limit(200);

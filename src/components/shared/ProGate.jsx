@@ -5,6 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Lock, Loader2 } from 'lucide-react';
 import BillingIntervalToggle from '@/components/shared/BillingIntervalToggle';
 import { priceLabel } from '@/lib/pricing';
+import { isNativePlatform } from '@/lib/push';
 
 const BILLING_ROLES = ['owner', 'admin', 'coo'];
 
@@ -46,7 +47,11 @@ export default function ProGate({ children, feature = 'This feature', tier = 'pr
           ? 'Upgrade to Field to unlock estimates, the client directory, tasks, scheduling, and team chat. Pro adds invoicing, expenses, materials, and QuickBooks.'
           : 'Upgrade to Pro to unlock invoicing, change orders, subcontractors, expenses, materials, cost codes, and QuickBooks.'}
       </p>
-      {canBill ? (
+      {canBill && isNativePlatform() ? (
+        <p className="text-sm text-muted-foreground mt-5">
+          Plans are managed on the web. Open app.guildwright.app in a browser to upgrade.
+        </p>
+      ) : canBill ? (
         <div className="mt-5 flex flex-col items-center gap-3">
           <BillingIntervalToggle value={billingInterval} onChange={setBillingInterval} disabled={!!loading} />
           <div className="flex flex-col sm:flex-row gap-2 justify-center">

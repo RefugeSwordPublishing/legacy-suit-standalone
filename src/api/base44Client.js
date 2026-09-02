@@ -32,6 +32,7 @@ const TABLES = {
   ChangeOrder: 'sub_change_orders',
   CostCode: 'cost_codes',
   ExpenseCategory: 'expense_categories',
+  AccountDeletionRequest: 'account_deletion_requests',
   CustomRole: 'custom_roles',
   CatalogItem: 'catalog_items',
   DailyGoal: 'daily_goals',
