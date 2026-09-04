@@ -10,8 +10,12 @@ import { format } from 'date-fns';
 import { sortByName } from '@/lib/naturalSort';
 import { findOverlap } from '@/lib/timeEntries';
 import { createEntry, updateEntry, flushQueue, getPendingEntries, subscribeOffline, pendingCount } from '@/lib/offlineTimeclock';
+import LocationDisclosure from '@/components/timeclock/LocationDisclosure';
 
 const GEOFENCE_RADIUS_M = 100;
+// Remembers that the location disclosure was accepted, per person on this device. A decline is
+// deliberately not remembered, so nobody is silently opted out of the geofence forever.
+const LOCATION_ACK_KEY = (userId) => `gw_location_ack_${userId || 'anon'}`;
 
 function degreesToRad(deg) {
   return deg * (Math.PI / 180);
@@ -87,6 +91,8 @@ export default function ClockWidget({ projects = [] }) {
   const queryClient = useQueryClient();
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [locationError, setLocationError] = useState('');
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const [disclosureResolve, setDisclosureResolve] = useState(null);
   const [locationOverrideCoords, setLocationOverrideCoords] = useState(null);
   const [loading, setLoading] = useState(false);
   const [manualUserId, setManualUserId] = useState('');
@@ -172,6 +178,25 @@ export default function ClockWidget({ projects = [] }) {
     setTimeout(() => finish(null), timeoutMs + 500);
   });
 
+  // Play requires the disclosure to appear before the OS permission prompt, so this resolves
+  // true only once the person has read it and chosen to continue.
+  const ensureLocationConsent = () => new Promise((resolve) => {
+    let acked = false;
+    try { acked = localStorage.getItem(LOCATION_ACK_KEY(currentUser?.id)) === 'yes'; } catch { /* private mode */ }
+    if (acked) return resolve(true);
+    setDisclosureResolve(() => resolve);
+    setDisclosureOpen(true);
+  });
+
+  const closeDisclosure = (allowed) => {
+    if (allowed) {
+      try { localStorage.setItem(LOCATION_ACK_KEY(currentUser?.id), 'yes'); } catch { /* private mode */ }
+    }
+    setDisclosureOpen(false);
+    if (disclosureResolve) disclosureResolve(allowed);
+    setDisclosureResolve(null);
+  };
+
   const handleClockIn = async () => {
     setLocationError('');
     setLoading(true);
@@ -196,7 +221,11 @@ export default function ClockWidget({ projects = [] }) {
     // Only check location when online. Offline (airplane mode / no signal) we skip it so the
     // clock-in is instant and never hangs waiting for a GPS fix; the shift syncs later.
     if (navigator.onLine) {
-      gpsCoords = await getGPS();
+      // Disclosure first, then the OS prompt. Declining clocks in without a location, the same
+      // as an offline clock-in.
+      if (await ensureLocationConsent()) {
+        gpsCoords = await getGPS();
+      }
       // Geofence: verify the clock-in is near the project site (only if the project has
       // coordinates). If the worker is well outside the radius, confirm before proceeding.
       if (gpsCoords && project.latitude != null && project.longitude != null) {
@@ -495,6 +524,12 @@ export default function ClockWidget({ projects = [] }) {
           </Button>
         </div>
       )}
+
+      <LocationDisclosure
+        open={disclosureOpen}
+        onAllow={() => closeDisclosure(true)}
+        onDecline={() => closeDisclosure(false)}
+      />
     </div>
   );
 }
