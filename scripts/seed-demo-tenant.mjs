@@ -1,8 +1,15 @@
-// Seeds the "Timberline Renovations" demo tenant with realistic mock data for marketing
+// Seeds a demo tenant with realistic mock data. Defaults to "Timberline Renovations" for marketing
 // screenshots. Comped to Pro (no trial banner). Owner is a real auth user (no email sent) so it
 // can be impersonated from the admin portal. Aborts if the demo tenant already exists.
 //
-// Usage: node scripts/seed-demo-tenant.mjs
+// Usage:
+//   node scripts/seed-demo-tenant.mjs
+//   node scripts/seed-demo-tenant.mjs --name "Play Review" --email review@x.com --password "..." \
+//     --crew-domain playreview.example --owner "Pat Rivera"
+//
+// Pass --password to give the owner a working password. Without it the owner exists but can
+// only be reached by impersonation, which is right for a screenshot tenant and wrong for a
+// store reviewer who has to sign in by hand.
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { randomUUID } from 'crypto';
@@ -11,8 +18,17 @@ const creds = readFileSync('C:/Dev/RefugeAndSword/_company/credentials.yaml', 'u
 const SERVICE_ROLE = creds.match(/service_role_key:\s*([^\s\n]+)/)[1].trim();
 const admin = createClient('https://eojpqciokqpmzyneqzmm.supabase.co', SERVICE_ROLE, { auth: { autoRefreshToken: false, persistSession: false } });
 
-const NAME = 'Timberline Renovations';
-const OWNER_EMAIL = 'dustystombo+timberline@gmail.com';
+const arg = (flag, fallback) => {
+  const i = process.argv.indexOf(flag);
+  return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+};
+const NAME = arg('--name', 'Timberline Renovations');
+const OWNER_EMAIL = arg('--email', 'dustystombo+timberline@gmail.com');
+const OWNER_PASSWORD = arg('--password', null);
+const CREW_DOMAIN = arg('--crew-domain', 'timberlinereno.com');
+const OWNER_NAME = arg('--owner', 'Jordan Vale');
+const [OWNER_FIRST, ...ownerRest] = OWNER_NAME.split(' ');
+const OWNER_LAST = ownerRest.join(' ');
 const die = (label, error) => { if (error) { console.error(`FAILED at ${label}:`, error.message || error); process.exit(1); } };
 const ins = async (table, rows) => { const { error } = await admin.from(table).insert(rows); die(`insert ${table}`, error); };
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
@@ -32,12 +48,13 @@ const ymd = (d) => d.toISOString().slice(0, 10);
 
   // 2. Owner auth user (no email sent) + membership + profile.
   const { data: created, error: uErr } = await admin.auth.admin.createUser({
-    email: OWNER_EMAIL, email_confirm: true, user_metadata: { full_name: 'Jordan Vale' },
+    email: OWNER_EMAIL, email_confirm: true, user_metadata: { full_name: OWNER_NAME },
+    ...(OWNER_PASSWORD ? { password: OWNER_PASSWORD } : {}),
   });
   die('owner user', uErr);
   const ownerId = created.user.id;
   await ins('memberships', { user_id: ownerId, company_id: companyId, role: 'owner' });
-  await ins('user_profiles', { user_id: ownerId, company_id: companyId, role: 'owner', email: OWNER_EMAIL, first_name: 'Jordan', last_name: 'Vale', full_name: 'Jordan Vale', is_active: true });
+  await ins('user_profiles', { user_id: ownerId, company_id: companyId, role: 'owner', email: OWNER_EMAIL, first_name: OWNER_FIRST, last_name: OWNER_LAST, full_name: OWNER_NAME, is_active: true });
 
   // 3. Company settings.
   await ins('company_settings', {
@@ -76,7 +93,7 @@ const ymd = (d) => d.toISOString().slice(0, 10);
   ];
   const crew = [];
   for (const c of crewDefs) {
-    const email = `${c.first.toLowerCase()}@timberlinereno.com`;
+    const email = `${c.first.toLowerCase()}@${CREW_DOMAIN}`;
     const { data: cu, error } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { full_name: `${c.first} ${c.last}` } });
     die(`crew user ${c.first}`, error);
     crew.push({ ...c, id: cu.user.id, email });
