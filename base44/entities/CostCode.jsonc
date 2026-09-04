@@ -1,0 +1,42 @@
+{
+  "name": "CostCode",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "quickbooks_item_id": {
+      "type": "string",
+      "description": "Linked QBO Product/Service ID"
+    },
+    "quickbooks_item_name": {
+      "type": "string",
+      "description": "Linked QBO Product/Service name"
+    },
+    "quickbooks_income_account_id": {
+      "type": "string",
+      "description": "Linked QBO Income Account ID"
+    },
+    "quickbooks_income_account_name": {
+      "type": "string",
+      "description": "Linked QBO Income Account name"
+    }
+  },
+  "required": [
+    "code",
+    "name"
+  ]
+}

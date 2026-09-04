@@ -1,0 +1,55 @@
+{
+  "name": "CatalogItem",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "materials",
+        "labor",
+        "subcontractor",
+        "other"
+      ],
+      "default": "materials"
+    },
+    "cost_code_id": {
+      "type": "string"
+    },
+    "unit": {
+      "type": "string"
+    },
+    "unit_cost": {
+      "type": "number",
+      "default": 0
+    },
+    "labor_cost_per_unit": {
+      "type": "number",
+      "default": 0
+    },
+    "default_quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "default_markup": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "category"
+  ]
+}

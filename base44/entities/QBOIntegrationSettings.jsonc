@@ -1,0 +1,74 @@
+{
+  "name": "QBOIntegrationSettings",
+  "type": "object",
+  "properties": {
+    "access_token": {
+      "type": "string",
+      "description": "QuickBooks OAuth access token"
+    },
+    "refresh_token": {
+      "type": "string",
+      "description": "QuickBooks OAuth refresh token"
+    },
+    "realm_id": {
+      "type": "string",
+      "description": "QuickBooks company ID (realmId)"
+    },
+    "token_expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the access token expires"
+    },
+    "is_connected": {
+      "type": "boolean",
+      "default": false
+    },
+    "company_name": {
+      "type": "string",
+      "description": "QuickBooks company name"
+    },
+    "company_email": {
+      "type": "string",
+      "description": "QuickBooks company email"
+    },
+    "sync_invoices": {
+      "type": "boolean",
+      "default": true
+    },
+    "sync_clients": {
+      "type": "boolean",
+      "default": true
+    },
+    "sync_projects": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_sync_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

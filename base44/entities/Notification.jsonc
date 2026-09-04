@@ -1,0 +1,43 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "material_added",
+        "material_updated",
+        "task_assigned",
+        "daily_goal",
+        "client_request",
+        "phase_approval",
+        "timecard_auto_clockout",
+        "change_order_accepted"
+      ],
+      "default": "material_added"
+    },
+    "title": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "message"
+  ]
+}

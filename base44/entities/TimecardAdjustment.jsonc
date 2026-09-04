@@ -1,0 +1,64 @@
+{
+  "name": "TimecardAdjustment",
+  "type": "object",
+  "properties": {
+    "time_entry_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "original_clock_in": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "original_clock_out": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requested_clock_in": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "requested_clock_out": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined"
+      ],
+      "default": "pending"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "review_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "time_entry_id",
+    "user_id",
+    "date"
+  ]
+}
