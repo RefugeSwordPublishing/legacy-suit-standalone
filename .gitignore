@@ -49,3 +49,6 @@ next-env.d.ts
 # one-off QBO diagnostics (read credentials; never commit)
 /qbo-prefs-toggle.mjs
 /qbo-prefs-snapshot.json
+
+# store screenshots (regenerate with scripts/store-screenshots.mjs)
+/store-screenshots
