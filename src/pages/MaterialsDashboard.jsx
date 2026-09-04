@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
 
 const statusConfig = {
   needed: { label: 'Needed', icon: ShoppingCart, className: 'bg-red-100 text-red-700 border-red-200' },
@@ -197,6 +198,7 @@ const emptyForm = { name: '', quantity: '', unit: '', priority: 'medium', status
 
 export default function MaterialsDashboard() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [editingMat, setEditingMat] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -208,16 +210,35 @@ export default function MaterialsDashboard() {
 
   const { data: allMaterials = [], isLoading } = useQuery({
     queryKey: ['materials'],
-    queryFn: () => base44.entities.Material.list(),
+    queryFn: () => base44.entities.Material.list('created_date'),
   });
 
+  // Flip the box first, then confirm with the server. Rolls back if the save fails.
+  const patchCache = (fn) => queryClient.setQueryData(['materials'], (rows) => (rows || []).map(fn));
+
   const updateStatus = async (id, status) => {
-    await base44.entities.Material.update(id, { status });
+    const previous = queryClient.getQueryData(['materials']);
+    patchCache((m) => (m.id === id ? { ...m, status } : m));
+    try {
+      await base44.entities.Material.update(id, { status });
+    } catch (e) {
+      queryClient.setQueryData(['materials'], previous);
+      toast({ title: 'Could not update that material', description: e.message, variant: 'destructive' });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ['materials'] });
   };
 
   const markSelectedDelivered = async (ids) => {
-    await Promise.all(ids.map(id => base44.entities.Material.update(id, { status: 'delivered' })));
+    const previous = queryClient.getQueryData(['materials']);
+    patchCache((m) => (ids.includes(m.id) ? { ...m, status: 'delivered' } : m));
+    try {
+      await Promise.all(ids.map((id) => base44.entities.Material.update(id, { status: 'delivered' })));
+    } catch (e) {
+      queryClient.setQueryData(['materials'], previous);
+      toast({ title: 'Could not mark those delivered', description: e.message, variant: 'destructive' });
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ['materials'] });
   };
 
@@ -257,9 +278,13 @@ export default function MaterialsDashboard() {
         ...p,
         materials: allMaterials
           .filter(m => m.project_id === p.id)
-          .sort((a, b) =>
-            (priorityConfig[a.priority]?.order ?? 2) - (priorityConfig[b.priority]?.order ?? 2)
-          ),
+          .sort((a, b) => {
+            const byPriority = (priorityConfig[a.priority]?.order ?? 2) - (priorityConfig[b.priority]?.order ?? 2);
+            if (byPriority !== 0) return byPriority;
+            // Equal priorities need a fixed order of their own, or they ride on row order.
+            return String(a.created_date || '').localeCompare(String(b.created_date || ''))
+              || String(a.id).localeCompare(String(b.id));
+          }),
       }))
       .filter(p => p.materials.length > 0);
 
