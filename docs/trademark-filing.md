@@ -2,7 +2,7 @@
 
 For a use-based (Section 1(a)) application in International Class 42, owned by
 **Refuge & Sword Publishing LLC** (Missouri). Hand this to an attorney or work from it directly in
-Trademark Center at tmcenter.uspto.gov.
+Trademark Center at https://trademarkcenter.uspto.gov.
 
 Written 2026-09-03. Not legal advice.
 
@@ -17,7 +17,7 @@ later if you want it; do not combine them in one application.
 The USPTO charges $350 per class for an identification taken from the ID Manual and **$550 for
 free-form wording**, so the entry below is built on the Manual's standard SaaS template. Paste it
 into the Trademark Center picker and confirm it is recognised: the form shows which fee tier you
-are on as you build the application.
+are on as you build the application. The Manual is searchable at https://idm-tmng.uspto.gov.
 
 > Software as a service (SAAS) services featuring software for construction project management,
 > namely, for preparing cost estimates and bids, generating invoices, tracking employee work hours,
@@ -82,8 +82,10 @@ the signed-in app works too. Save it as PDF or JPG.
 
 ## Filing checklist
 
-1. Verify your USPTO.gov account identity. Start this first; it is the slowest step and it is not
-   the form.
+1. Verify your USPTO.gov account identity at
+   https://www.uspto.gov/trademarks/apply/identity-verification, creating the account first at
+   https://account.uspto.gov/profile/create-account. Start this before anything else: it is the
+   slowest step and it is independent of the application.
 2. Owner: Refuge & Sword Publishing LLC, with the LLC's address and state of formation.
 3. Mark: GUILDWRIGHT, standard characters, no design.
 4. Class 42 with the identification above.
