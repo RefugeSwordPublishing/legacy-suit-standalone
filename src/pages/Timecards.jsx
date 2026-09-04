@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44, supabase } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser } from '@/lib/UserContext';
+import { useWorkweekStart } from '@/lib/useWorkweekStart';
 import { format, startOfWeek, endOfWeek, parseISO, addDays } from 'date-fns';
 import { findOverlap } from '@/lib/timeEntries';
 import { Clock, ChevronLeft, ChevronRight, Pencil, CheckCircle2, XCircle, AlertCircle, UserCheck, LogOut, Trash2, PlusCircle, Download } from 'lucide-react';
@@ -24,8 +25,8 @@ function formatDuration(mins) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function WeekNav({ weekStart, onPrev, onNext }) {
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+function WeekNav({ weekStart, onPrev, onNext, weekStartsOn }) {
+  const weekEnd = endOfWeek(weekStart, { weekStartsOn });
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="icon" onClick={onPrev}><ChevronLeft className="w-4 h-4" /></Button>
@@ -42,7 +43,16 @@ export default function Timecards() {
   const queryClient = useQueryClient();
   const isHighRole = HIGH_ROLES.includes(currentUser?.role);
   const isManager = MANAGER_ROLES.includes(currentUser?.role);
+  const { weekStartsOn, ready: weekStartReady } = useWorkweekStart();
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const navigatedRef = useRef(false);
+  useEffect(() => {
+    // Realign to the tenant workweek when the setting arrives, but never yank the view out
+    // from under someone who has already paged to another week.
+    if (weekStartReady && !navigatedRef.current) {
+      setWeekStart(startOfWeek(new Date(), { weekStartsOn }));
+    }
+  }, [weekStartReady, weekStartsOn]);
   const [adjustEntry, setAdjustEntry] = useState(null);
   const [adjustForm, setAdjustForm] = useState({ clock_in: '', clock_out: '', reason: '' });
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
@@ -95,7 +105,7 @@ export default function Timecards() {
     }
   };
 
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(weekStart, { weekStartsOn });
   const weekStartStr = format(weekStart, 'yyyy-MM-dd');
   const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
 
@@ -301,8 +311,9 @@ export default function Timecards() {
           <div className="w-full sm:w-auto flex justify-center">
             <WeekNav
               weekStart={weekStart}
-              onPrev={() => setWeekStart(d => addDays(d, -7))}
-              onNext={() => setWeekStart(d => addDays(d, 7))}
+              weekStartsOn={weekStartsOn}
+              onPrev={() => { navigatedRef.current = true; setWeekStart(d => addDays(d, -7)); }}
+              onNext={() => { navigatedRef.current = true; setWeekStart(d => addDays(d, 7)); }}
             />
           </div>
         </div>

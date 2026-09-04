@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '@/lib/UserContext';
@@ -36,6 +36,8 @@ export default function TimecardReport() {
   const today = new Date();
   const [startDate, setStartDate] = useState(format(startOfWeek(subWeeks(today, 1), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfWeek(subWeeks(today, 1), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  // Set once the user edits either date, so loading settings cannot overwrite their choice.
+  const datesTouchedRef = useRef(false);
   const [filterProject, setFilterProject] = useState('all');
   const [filterUser, setFilterUser] = useState('all');
 
@@ -58,7 +60,13 @@ export default function TimecardReport() {
           setCompanyId(cs.company_id);
           setPreset(cs.payroll_export_preset || 'generic');
           setOvertimeMode(cs.payroll_overtime_mode || 'weekly_40');
-          setWeekStart(cs.payroll_week_start ?? 0);
+          const ws = cs.payroll_week_start ?? 1;
+          setWeekStart(ws);
+          if (!datesTouchedRef.current) {
+            const base = subWeeks(new Date(), 1);
+            setStartDate(format(startOfWeek(base, { weekStartsOn: ws }), 'yyyy-MM-dd'));
+            setEndDate(format(endOfWeek(base, { weekStartsOn: ws }), 'yyyy-MM-dd'));
+          }
           setIncludePay(cs.payroll_include_pay ?? false);
         } else {
           const companies = await base44.entities.Company.list();
@@ -208,13 +216,13 @@ export default function TimecardReport() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Workweek starts</Label>
-              <Select value={String(weekStart)} onValueChange={(v) => setWeekStart(Number(v))} disabled={overtimeMode !== 'weekly_40'}>
+              <Select value={String(weekStart)} onValueChange={(v) => setWeekStart(Number(v))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {WEEK_DAYS.map(d => <SelectItem key={d.v} value={String(d.v)}>{d.l}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">The 7-day week used to count hours toward overtime.</p>
+              <p className="text-xs text-muted-foreground">The day your workweek begins. Sets the timecard week, the Gusto export period, and the 7-day window for overtime.</p>
             </div>
           </div>
           <div className="flex items-center justify-between border-t border-border pt-4">
@@ -254,11 +262,11 @@ export default function TimecardReport() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Start Date</Label>
-            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <Input type="date" value={startDate} onChange={e => { datesTouchedRef.current = true; setStartDate(e.target.value); }} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">End Date</Label>
-            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <Input type="date" value={endDate} onChange={e => { datesTouchedRef.current = true; setEndDate(e.target.value); }} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Project</Label>
