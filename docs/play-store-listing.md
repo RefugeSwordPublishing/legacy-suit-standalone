@@ -58,7 +58,7 @@ ONE PRICE FOR THE COMPANY
 GuildWright is priced per company, not per seat, so put your whole crew on it. Every plan starts
 with a free trial and no credit card.
 
-Plans are managed at guildwright.app. Sign in to the app with the account you create there.
+Start a free trial in the app, or at guildwright.app. Plans and billing are managed on the web.
 ```
 
 ## Categorisation and contact
