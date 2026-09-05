@@ -6,7 +6,7 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useFeaturePermission } from '@/lib/usePermissions';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
-import { Bell, Receipt, Link2, Hash, ClipboardList, Tags, Users, KeyRound, ShieldCheck, Settings as SettingsIcon, LifeBuoy, CreditCard, Loader2, CheckCircle2, BookOpen, BarChart2, FileText, CalendarOff, Moon, Sun, LogOut } from 'lucide-react';
+import { Bell, Receipt, Link2, Hash, Palette, ClipboardList, Tags, Users, KeyRound, ShieldCheck, Settings as SettingsIcon, LifeBuoy, CreditCard, Loader2, CheckCircle2, BookOpen, BarChart2, FileText, CalendarOff, Moon, Sun, LogOut } from 'lucide-react';
 import ReportIssueDialog from '@/components/layout/ReportIssueButton';
 import TimeOffRequestDialog from '@/components/time-off/TimeOffRequestDialog';
 import ExampleDataCard from '@/components/onboarding/ExampleDataCard';
@@ -29,6 +29,7 @@ const MODULES = [
       { path: '/qbo-settings', label: 'QuickBooks', icon: Link2, desc: 'Connect QBO and map cost codes to items', roles: ['owner', 'admin'] },
       { path: '/xero-settings', label: 'Xero', icon: Link2, desc: 'Connect Xero and map accounts', roles: ['owner', 'admin'] },
       { path: '/cost-codes', label: 'Cost Codes & Catalog', icon: Hash, desc: 'Your price book, and cost codes for estimates and expenses', roles: ['owner', 'coo', 'admin'] },
+      { path: '/branding', label: 'Branding', icon: Palette, desc: 'Your logo and colours on client-facing documents', roles: ['owner', 'admin'] },
       { path: '/templates', label: 'Templates', icon: ClipboardList, desc: 'Estimate and task templates' },
     ],
   },
