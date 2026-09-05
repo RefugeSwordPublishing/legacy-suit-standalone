@@ -57,6 +57,16 @@ async function loadEnrichedUser() {
   if (!user) return null;
   try {
     let profiles = await base44.entities.UserProfile.filter({ user_id: user.id });
+    // Self-service signup: the company is built on the first sign-in after email confirmation.
+    // This has to run before the fallback below, which would otherwise hand them a profile with
+    // no company_id and quietly strand the account outside every tenant.
+    if (!profiles || profiles.length === 0) {
+      try {
+        const { data: prov } = await supabase.functions.invoke('signup-tenant', { body: { action: 'provision' } });
+        if (prov?.company_id) profiles = await base44.entities.UserProfile.filter({ user_id: user.id });
+      } catch { /* not a self-service signup; fall through */ }
+    }
+
     // Auto-create profile for new signups who don't have one yet
     if (!profiles || profiles.length === 0) {
       const nameParts = (user.full_name || '').split(' ');

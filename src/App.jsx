@@ -35,6 +35,7 @@ import SubmitBid from '@/pages/SubmitBid';
 import Clients from '@/pages/Clients';
 import CostCodes from '@/pages/CostCodes';
 import Branding from '@/pages/Branding';
+import Signup from '@/pages/Signup';
 import Estimates from '@/pages/Estimates';
 import EstimateBuilder from '@/pages/EstimateBuilder';
 import TemplateBuilder from '@/pages/TemplateBuilder';
@@ -82,7 +83,8 @@ const AuthenticatedApp = () => {
     path.startsWith('/submit-bid') ||
     path.startsWith('/client-estimate') ||
     path.startsWith('/client-change-order') ||
-    path.startsWith('/reset-password');
+    path.startsWith('/reset-password') ||
+    path.startsWith('/signup');
 
   if (isPublicRoute) {
     return (
@@ -93,6 +95,7 @@ const AuthenticatedApp = () => {
         <Route path="/client-estimate/:id" element={<ClientEstimate />} />
         <Route path="/client-change-order/:id" element={<ClientChangeOrder />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     );
