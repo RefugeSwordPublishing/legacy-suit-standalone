@@ -1,0 +1,76 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "owner",
+        "coo",
+        "site_manager",
+        "crew_member",
+        "client"
+      ],
+      "default": "crew_member"
+    },
+    "assigned_project_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of project IDs this user is assigned to"
+    },
+    "first_name": {
+      "type": "string"
+    },
+    "last_name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    }
+  },
+  "access_control": {
+    "list": {
+      "roles": [
+        "admin",
+        "owner",
+        "coo",
+        "site_manager"
+      ]
+    },
+    "read": {
+      "roles": [
+        "admin",
+        "owner",
+        "coo",
+        "site_manager",
+        "crew_member",
+        "client"
+      ]
+    },
+    "update": {
+      "roles": [
+        "admin",
+        "owner",
+        "coo",
+        "site_manager"
+      ]
+    },
+    "delete": {
+      "roles": [
+        "admin",
+        "owner",
+        "coo",
+        "site_manager"
+      ]
+    }
+  },
+  "required": [
+    "assigned_project_ids",
+    "first_name",
+    "last_name",
+    "phone"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "PermissionSettings",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "site_manager",
+        "crew_member"
+      ],
+      "description": "The role this permission setting applies to"
+    },
+    "feature": {
+      "type": "string",
+      "description": "Feature area key, e.g. 'estimates', 'invoices'"
+    },
+    "can_read": {
+      "type": "boolean",
+      "default": false
+    },
+    "can_write": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "role",
+    "feature"
+  ],
+  "rls": {
+    "read": true,
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

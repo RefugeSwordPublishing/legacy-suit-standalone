@@ -1,0 +1,35 @@
+{
+  "name": "ProjectFile",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "file_type": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "plans",
+        "general",
+        "corrections"
+      ],
+      "default": "general"
+    },
+    "uploaded_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "name",
+    "file_url"
+  ]
+}

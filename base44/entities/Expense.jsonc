@@ -1,0 +1,85 @@
+{
+  "name": "Expense",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "receipt_image": {
+      "type": "string"
+    },
+    "expense_category": {
+      "type": "string",
+      "enum": [
+        "materials",
+        "subcontractor"
+      ],
+      "default": "materials",
+      "description": "Whether this expense is for materials or a subcontractor"
+    },
+    "cost_code_id": {
+      "type": "string",
+      "description": "Reference to CostCode entity id"
+    },
+    "cost_code": {
+      "type": "string",
+      "description": "Cost code string for display and QB sync"
+    },
+    "vendor": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "billable": {
+      "type": "boolean",
+      "default": true
+    },
+    "billed": {
+      "type": "boolean",
+      "default": false
+    },
+    "invoice_id": {
+      "type": "string"
+    },
+    "billing_mode": {
+      "type": "string",
+      "enum": [
+        "individual",
+        "grouped"
+      ],
+      "default": "individual"
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id"
+  ]
+}

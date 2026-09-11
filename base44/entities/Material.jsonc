@@ -1,0 +1,53 @@
+{
+  "name": "Material",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the associated project"
+    },
+    "name": {
+      "type": "string",
+      "description": "Material name/description"
+    },
+    "quantity": {
+      "type": "number"
+    },
+    "unit": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "needed",
+        "in_cart",
+        "ordered",
+        "delivered"
+      ],
+      "default": "needed"
+    },
+    "supplier": {
+      "type": "string"
+    },
+    "estimated_cost": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "project_id"
+  ]
+}

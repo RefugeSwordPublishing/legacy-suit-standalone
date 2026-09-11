@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Pinyon+Script&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GuildWright: Fraunces (wordmark/headings) + Inter (UI), loaded above via Google Fonts */
+
+@media print {
+  nav, header, footer,
+  [class*="nav"], [class*="bottom-bar"], [class*="tab-bar"],
+  [class*="navigation"], [class*="toolbar"],
+  aside, .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  *[style*="position: fixed"],
+  *[style*="position: sticky"] {
+    display: none !important;
+  }
+
+  /* The app shell is h-screen + overflow-hidden with a scrolling <main>; without
+     unclipping these for print, only the first viewport (one page) prints. */
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .h-screen {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
+
+/* GuildWright Brand Colors:
+   Forge Black:   #262525
+   Aged Brass:    #B58A45
+   Walnut:        #6B4B32
+   Limestone:     #F5F2EA
+   Deep Spruce:   #355848
+*/
+
+@layer base {
+  :root {
+    --font-butler: 'Fraunces', 'Georgia', serif;
+    --font-highway: 'Inter', 'system-ui', 'Segoe UI', sans-serif;
+
+    /* Light mode, limestone base */
+    --background: 44 33% 94%;          /* #F5F2EA limestone */
+    --foreground: 0 2% 14%;            /* #262525 forge black */
+    --card: 44 30% 97%;
+    --card-foreground: 0 2% 14%;
+    --popover: 44 30% 98%;
+    --popover-foreground: 0 2% 14%;
+    --primary: 0 2% 14%;               /* #262525 forge black */
+    --primary-foreground: 44 33% 94%;  /* #F5F2EA limestone */
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 0 2% 14%;
+    --muted: 40 18% 89%;
+    --muted-foreground: 28 12% 40%;    /* warm walnut-gray */
+    --accent: 37 44% 49%;              /* #B58A45 aged brass */
+    --accent-foreground: 0 2% 14%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 44 33% 94%;
+    --border: 40 16% 82%;
+    --input: 40 16% 82%;
+    --ring: 37 44% 49%;                /* brass focus ring */
+    --radius: 0.375rem;                /* 6px */
+
+    --chart-1: 37 44% 49%;             /* brass */
+    --chart-2: 153 25% 28%;            /* deep spruce */
+    --chart-3: 26 36% 31%;             /* walnut */
+    --chart-4: 0 2% 14%;               /* forge black */
+    --chart-5: 44 20% 70%;             /* muted limestone */
+
+    /* Sidebar, deep charcoal */
+    --sidebar-background: 0 2% 11%;
+    --sidebar-foreground: 44 25% 88%;
+    --sidebar-primary: 44 25% 88%;
+    --sidebar-primary-foreground: 0 2% 11%;
+    --sidebar-accent: 37 44% 42%;      /* aged brass, active state */
+    --sidebar-accent-foreground: 44 33% 94%;
+    --sidebar-border: 0 2% 20%;
+    --sidebar-ring: 37 44% 49%;
+  }
+
+  .dark {
+    /* Dark mode, forge tones */
+    --background: 0 2% 9%;
+    --foreground: 44 20% 90%;
+    --card: 0 2% 12%;
+    --card-foreground: 44 20% 90%;
+    --popover: 0 2% 12%;
+    --popover-foreground: 44 20% 90%;
+    --primary: 44 20% 90%;
+    --primary-foreground: 0 2% 12%;
+    --secondary: 0 2% 16%;
+    --secondary-foreground: 44 20% 90%;
+    --muted: 0 2% 15%;
+    --muted-foreground: 40 8% 55%;
+    --accent: 37 44% 49%;             /* aged brass */
+    --accent-foreground: 0 2% 10%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 44 20% 90%;
+    --border: 0 2% 20%;
+    --input: 0 2% 20%;
+    --ring: 37 44% 49%;
+    --sidebar-background: 0 2% 7%;
+    --sidebar-foreground: 44 20% 85%;
+    --sidebar-primary: 44 25% 80%;
+    --sidebar-primary-foreground: 0 2% 8%;
+    --sidebar-accent: 37 44% 42%;
+    --sidebar-accent-foreground: 44 33% 94%;
+    --sidebar-border: 0 2% 16%;
+    --sidebar-ring: 44 25% 75%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-highway);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-butler);
+  }
+
+  /* Cards */
+  .card, [class*="Card"] {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 4px rgba(38, 37, 37, 0.08);
+    border-radius: var(--radius);
+  }
+
+  /* Tables */
+  table th {
+    background: hsl(var(--background));
+    font-family: var(--font-highway);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  table td {
+    font-family: var(--font-highway);
+    border-bottom: 0.5px solid hsl(var(--border));
+  }
+
+  table tr:hover td {
+    background: hsl(var(--muted));
+  }
+
+  /* Inputs */
+  input, textarea, select {
+    font-family: var(--font-highway) !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #A8A296 !important;
+  }
+
+  /* Buttons */
+  button {
+    font-family: var(--font-highway);
+  }
+}
+
+/* Brand utility classes */
+@layer utilities {
+  .brand-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 4px rgba(38, 37, 37, 0.08);
+    border-radius: 6px;
+  }
+
+  .font-butler {
+    font-family: var(--font-butler) !important;
+  }
+
+  .font-highway {
+    font-family: var(--font-highway) !important;
+  }
+}

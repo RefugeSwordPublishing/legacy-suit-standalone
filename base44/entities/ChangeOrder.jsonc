@@ -1,0 +1,41 @@
+{
+  "name": "ChangeOrder",
+  "type": "object",
+  "properties": {
+    "bid_request_id": {
+      "type": "string"
+    },
+    "bid_submission_id": {
+      "type": "string"
+    },
+    "sub_contractor_name": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined"
+      ],
+      "default": "pending"
+    },
+    "created_by_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "bid_request_id",
+    "bid_submission_id",
+    "amount"
+  ]
+}

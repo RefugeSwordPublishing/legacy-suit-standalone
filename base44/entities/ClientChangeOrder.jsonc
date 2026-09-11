@@ -1,0 +1,147 @@
+{
+  "name": "ClientChangeOrder",
+  "type": "object",
+  "properties": {
+    "change_order_number": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "sent",
+        "approved",
+        "rejected"
+      ],
+      "default": "draft"
+    },
+    "estimate_id": {
+      "type": "string"
+    },
+    "estimate_number": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "client_id": {
+      "type": "string"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "client_email": {
+      "type": "string"
+    },
+    "date_issued": {
+      "type": "string",
+      "format": "date"
+    },
+    "valid_through": {
+      "type": "string",
+      "format": "date"
+    },
+    "scope_of_work": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "materials",
+                    "labor",
+                    "subcontractor",
+                    "other"
+                  ],
+                  "default": "materials"
+                },
+                "quantity": {
+                  "type": "number",
+                  "default": 1
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "unit_cost": {
+                  "type": "number",
+                  "default": 0
+                },
+                "markup_pct": {
+                  "type": "number",
+                  "default": 0
+                },
+                "line_total": {
+                  "type": "number",
+                  "default": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gc_fee_enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "gc_fee_pct": {
+      "type": "number",
+      "default": 13
+    },
+    "gc_fee_label": {
+      "type": "string"
+    },
+    "original_estimate_total": {
+      "type": "number"
+    },
+    "change_order_total": {
+      "type": "number"
+    },
+    "new_contract_total": {
+      "type": "number"
+    },
+    "signed_by": {
+      "type": "string"
+    },
+    "signed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sign_ip": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "estimate_id"
+  ]
+}
