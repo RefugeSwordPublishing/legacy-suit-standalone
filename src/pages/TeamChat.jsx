@@ -229,9 +229,9 @@ export default function TeamChat() {
               ))}
             </SelectContent>
           </Select>
-          {activeChannelObj?.group === 'Archived Projects' && (
+          {activeChannelObj?.group === 'Completed Projects' && (
             <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full flex items-center gap-1">
-              <Archive className="w-3 h-3" /> Archived
+              <Archive className="w-3 h-3" /> Completed
             </span>
           )}
         </div>
