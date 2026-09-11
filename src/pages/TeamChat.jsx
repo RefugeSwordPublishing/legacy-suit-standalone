@@ -50,8 +50,9 @@ export default function TeamChat() {
     ? projects
     : projects.filter(p => (currentUser?.assigned_project_ids || []).includes(p.id));
 
+  // Archived projects are closed out and have no channel. Completed ones stay readable below.
   const activeProjects = visibleProjects.filter(p => !isClosed(p));
-  const completedProjects = visibleProjects.filter(p => isClosed(p));
+  const completedProjects = visibleProjects.filter(p => p.status === 'completed');
 
   const canSeeManagement = MANAGEMENT_CHANNEL_ROLES.includes(currentUser?.role) && !isCrewMember;
   const canDelete = CAN_DELETE_ROLES.includes(currentUser?.role);
@@ -60,7 +61,7 @@ export default function TeamChat() {
     { id: 'team', label: 'Full Team', icon: Users, group: 'General' },
     ...(canSeeManagement ? [{ id: 'management', label: 'Management', icon: MessageSquare, group: 'General' }] : []),
     ...activeProjects.map(p => ({ id: `project_${p.id}`, label: p.name, icon: FolderKanban, group: 'Projects' })),
-    ...completedProjects.map(p => ({ id: `project_${p.id}`, label: p.name, icon: Archive, group: 'Archived Projects' })),
+    ...completedProjects.map(p => ({ id: `project_${p.id}`, label: p.name, icon: Archive, group: 'Completed Projects' })),
   ];
 
   // On mount, check for unread messages across all channels

@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FolderOpen, Upload, Trash2, FileText, X } from 'lucide-react';
-import { differenceInDays } from 'date-fns';
 
 const categoryConfig = {
   plans:       { label: 'Plans',       className: 'bg-blue-100 text-blue-700 border-blue-200' },
@@ -110,7 +109,7 @@ function LightboxModal({ file, onClose }) {
   );
 }
 
-export default function ProjectFilesList({ files, projectId, projectStatus, projectUpdatedDate, onRefresh }) {
+export default function ProjectFilesList({ files, projectId, onRefresh }) {
   const { currentUser } = useCurrentUser();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -121,15 +120,6 @@ export default function ProjectFilesList({ files, projectId, projectStatus, proj
   const fileRef = useRef();
 
   const canManage = canManageProjects(currentUser);
-
-  // Auto-delete files if project completed for 14+ days
-  useEffect(() => {
-    const isCompleted = projectStatus === 'completed';
-    const daysSinceUpdate = projectUpdatedDate ? differenceInDays(new Date(), new Date(projectUpdatedDate)) : 0;
-    if (isCompleted && daysSinceUpdate >= 14 && files.length > 0) {
-      Promise.all(files.map(f => base44.entities.ProjectFile.delete(f.id))).then(() => onRefresh());
-    }
-  }, [projectStatus, projectUpdatedDate, files.length]);
 
   const onFileChange = (e) => {
     const f = e.target.files[0];

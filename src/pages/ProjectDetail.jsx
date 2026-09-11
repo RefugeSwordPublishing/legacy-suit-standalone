@@ -198,8 +198,6 @@ export default function ProjectDetail() {
           <ProjectFilesList
             files={projectFiles}
             projectId={projectId}
-            projectStatus={project.status}
-            projectUpdatedDate={project.updated_date}
             onRefresh={refreshFiles}
           />
 
