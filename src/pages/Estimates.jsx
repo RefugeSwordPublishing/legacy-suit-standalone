@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Label } from '@/components/ui/label';
 import ListToolbar from '@/components/shared/ListToolbar';
 import { naturalCompare, byDateDesc } from '@/lib/naturalSort';
+import { readLaborHourRate, saveLaborHourRate } from '@/lib/laborHourRate';
 
 const EST_SORT_OPTIONS = [
   { value: 'recent', label: 'Recently added' },
@@ -43,17 +44,14 @@ export default function Estimates() {
   const [activeTab, setActiveTab] = useState('estimates');
   const [rapidOpen, setRapidOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [laborHourRate, setLaborHourRate] = useState(() => {
-    const saved = localStorage.getItem('estimateLaborHourRate');
-    return saved ? Number(saved) : 40;
-  });
+  const [laborHourRate, setLaborHourRate] = useState(readLaborHourRate);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   const handleLaborRateChange = (val) => {
     const num = Number(val);
     setLaborHourRate(num);
-    localStorage.setItem('estimateLaborHourRate', String(num));
+    saveLaborHourRate(num);
   };
 
   const { data: estimates = [], isLoading } = useQuery({

@@ -53,7 +53,7 @@ export default function PartialPaymentDialog({ open, onOpenChange, submission, t
     setSaving(false);
     setAmount('');
     setNote('');
-    onSaved();
+    onSaved({ payment: newPayment, payments, index: payments.length - 1 });
     onOpenChange(false);
   };
 

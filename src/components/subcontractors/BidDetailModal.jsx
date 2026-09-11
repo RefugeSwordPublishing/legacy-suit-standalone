@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import ChangeOrderDialog from './ChangeOrderDialog';
 import ManualApproveDialog from './ManualApproveDialog';
 import PartialPaymentDialog from './PartialPaymentDialog';
+import SubPaymentFollowUpDialog from './SubPaymentFollowUpDialog';
+import AddExpenseDialog from '@/components/expenses/AddExpenseDialog';
 
 function fmt(n) {
   return `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -63,6 +65,92 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
   });
 
   const invitedSubs = (br?.sub_contractor_ids || []).map(id => subs.find(s => s.id === id)).filter(Boolean);
+
+  // After a payment is recorded: ask to expense it, then ask to deduct crew hours for it.
+  // followUp = { subId, contractorName, amount, note, index, project, step: 'expense'|'waiting'|'hours' }
+  const [followUp, setFollowUp] = useState(null);
+  const [expensePrefill, setExpensePrefill] = useState(null);
+  const [deducting, setDeducting] = useState(false);
+  const paymentsRef = useRef([]);
+  const writeChain = useRef(Promise.resolve());
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => base44.entities.Project.list('name', 100),
+    enabled: open,
+  });
+
+  // Note what a payment turned into (expense, hours) on the payment itself. Writes run in order and
+  // each sends the latest array, so the last one to land always carries every field.
+  const annotatePayment = (subId, index, fields) => {
+    paymentsRef.current = paymentsRef.current.map((p, i) => (i === index ? { ...p, ...fields } : p));
+    writeChain.current = writeChain.current
+      .then(() => base44.entities.BidSubmission.update(subId, { payments: paymentsRef.current }))
+      .then(() => qc.invalidateQueries({ queryKey: ['bid-submissions', bidRequest.id] }))
+      .catch(() => { /* the expense and hours changes stand without the note */ });
+  };
+
+  const startFollowUp = async (sub, { payment, payments, index }) => {
+    paymentsRef.current = payments;
+    const contractor = subs.find(s => s.id === sub.sub_contractor_id);
+    let project = null;
+    if (br?.project_id) {
+      project = projects.find(p => p.id === br.project_id)
+        || await base44.entities.Project.get(br.project_id).catch(() => null);
+    }
+    setFollowUp({
+      subId: sub.id,
+      contractorName: contractor?.business_name || sub.sub_contractor_name || contractor?.contact_name || '',
+      amount: payment.amount,
+      note: payment.note,
+      index,
+      project,
+      step: 'expense',
+    });
+  };
+
+  const askHoursOrFinish = () => {
+    setFollowUp(f => (f && f.project && Number(f.project.budget_hours) > 0 ? { ...f, step: 'hours' } : null));
+  };
+
+  const handleExpenseAnswer = (yes) => {
+    if (!yes) return askHoursOrFinish();
+    const f = followUp;
+    setExpensePrefill({
+      project_id: f.project?.id || br?.project_id || '',
+      project_name: f.project?.name || br?.project_name || '',
+      vendor: f.contractorName,
+      date: format(new Date(), 'yyyy-MM-dd'),
+      total_amount: String(f.amount),
+      // Sub work on a contracted job is already in the client's price. Billable expenses get pulled
+      // onto invoices as pass-through costs, so default this off to avoid billing it twice.
+      billable: false,
+      notes: [`Subcontractor payment, ${br?.title || 'bid'}`, f.note].filter(Boolean).join('. '),
+      category_bucket: 'subcontractor',
+    });
+    setFollowUp({ ...f, step: 'waiting' });
+  };
+
+  const handleHoursAnswer = async (yes, hours, rate) => {
+    const f = followUp;
+    if (!yes || !f?.project) return setFollowUp(null);
+    setDeducting(true);
+    try {
+      // Read the current value rather than the one captured when the payment was recorded.
+      const fresh = await base44.entities.Project.get(f.project.id);
+      const before = Number(fresh?.budget_hours) || 0;
+      const after = Math.max(0, Math.round((before - hours) * 10) / 10);
+      await base44.entities.Project.update(f.project.id, { budget_hours: after });
+      annotatePayment(f.subId, f.index, { hours_deducted: hours, hours_rate: rate });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      toast.success(`${hours} hrs deducted. ${f.project.name} now has ${after} budget hours.`);
+      setFollowUp(null);
+    } catch (e) {
+      toast.error(e?.message || 'Could not update the project hours.');
+    } finally {
+      setDeducting(false);
+    }
+  };
 
   const handleSendBids = async () => {
     setSending(true);
@@ -412,7 +500,11 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
                                     <div className="space-y-1">
                                       {sub.payments.map((p, i) => (
                                         <div key={i} className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 rounded px-2 py-1">
-                                          <span>{new Date(p.date).toLocaleDateString()}{p.note ? `, ${p.note}` : ''}</span>
+                                          <span>
+                                            {new Date(p.date).toLocaleDateString()}{p.note ? `, ${p.note}` : ''}
+                                            {p.expense_id && <span className="ml-1.5 text-emerald-700">Expensed</span>}
+                                            {p.hours_deducted > 0 && <span className="ml-1.5 text-primary">{p.hours_deducted} hrs deducted</span>}
+                                          </span>
                                           <span className="font-medium text-foreground">{fmt(p.amount)}</span>
                                         </div>
                                       ))}
@@ -444,7 +536,11 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
                                   <div className="space-y-1">
                                     {sub.payments.map((p, i) => (
                                       <div key={i} className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 rounded px-2 py-1">
-                                        <span>{new Date(p.date).toLocaleDateString()}{p.note ? `, ${p.note}` : ''}</span>
+                                        <span>
+                                            {new Date(p.date).toLocaleDateString()}{p.note ? `, ${p.note}` : ''}
+                                            {p.expense_id && <span className="ml-1.5 text-emerald-700">Expensed</span>}
+                                            {p.hours_deducted > 0 && <span className="ml-1.5 text-primary">{p.hours_deducted} hrs deducted</span>}
+                                          </span>
                                         <span className="font-medium text-foreground">{fmt(p.amount)}</span>
                                       </div>
                                     ))}
@@ -482,11 +578,43 @@ export default function BidDetailModal({ bidRequest, open, onOpenChange, onRefre
         onOpenChange={v => !v && setPaymentDialogSubmission(null)}
         submission={paymentDialogSubmission.sub}
         totalAmount={paymentDialogSubmission.totalAmt}
-        onSaved={() => {
+        onSaved={(result) => {
           qc.invalidateQueries({ queryKey: ['bid-submissions', bidRequest.id] });
           qc.invalidateQueries({ queryKey: ['bid-requests'] });
           qc.invalidateQueries({ queryKey: ['bid-submissions'] });
           onRefresh();
+          if (result?.payment?.amount > 0) startFollowUp(paymentDialogSubmission.sub, result);
+        }}
+      />
+    )}
+
+    {followUp && (
+      <SubPaymentFollowUpDialog
+        open={followUp.step === 'expense' || followUp.step === 'hours'}
+        step={followUp.step}
+        amount={followUp.amount}
+        contractorName={followUp.contractorName}
+        project={followUp.project}
+        busy={deducting}
+        onDismiss={() => setFollowUp(null)}
+        onExpense={handleExpenseAnswer}
+        onHours={handleHoursAnswer}
+      />
+    )}
+
+    {expensePrefill && (
+      <AddExpenseDialog
+        open
+        onOpenChange={(v) => {
+          if (v) return;
+          setExpensePrefill(null);
+          askHoursOrFinish();
+        }}
+        projects={projects}
+        initialValues={expensePrefill}
+        onSaved={(saved) => {
+          qc.invalidateQueries({ queryKey: ['expenses'] });
+          if (followUp && saved?.id) annotatePayment(followUp.subId, followUp.index, { expense_id: saved.id });
         }}
       />
     )}

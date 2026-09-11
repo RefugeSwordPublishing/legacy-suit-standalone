@@ -32,8 +32,10 @@ const EMPTY_FORM = {
   line_items: [],
 };
 
-// expense prop = existing record for edit mode
-export default function AddExpenseDialog({ open, onOpenChange, projects, onSaved, expense, onDeleted }) {
+// expense prop = existing record for edit mode.
+// initialValues = prefill for a new expense (form fields, plus category_bucket to pick the first
+// category rolling to that bucket). Pass a stable object (state), not an inline literal.
+export default function AddExpenseDialog({ open, onOpenChange, projects, onSaved, expense, onDeleted, initialValues }) {
   const { toast } = useToast();
   const isEditMode = !!expense;
   const [uploading, setUploading] = useState(false);
@@ -61,9 +63,10 @@ export default function AddExpenseDialog({ open, onOpenChange, projects, onSaved
         line_items: (expense.line_items || []).map(li => ({ id: li.id || uuidv4(), description: li.description || '', amount: li.amount || 0 })),
       });
     } else if (open && !expense) {
-      setForm(EMPTY_FORM);
+      const { category_bucket: _bucket, ...prefill } = initialValues || {};
+      setForm({ ...EMPTY_FORM, ...prefill });
     }
-  }, [open, expense]);
+  }, [open, expense, initialValues]);
 
   const { data: costCodes = [] } = useQuery({
     queryKey: ['cost-codes-active'],
@@ -75,13 +78,15 @@ export default function AddExpenseDialog({ open, onOpenChange, projects, onSaved
     queryFn: () => base44.entities.ExpenseCategory.filter({ is_active: true }, 'sort_order', 100),
   });
 
-  // Default a new expense to the first real category (instead of the legacy 'materials' slug).
+  // Default a new expense to the first real category (instead of the legacy 'materials' slug), or
+  // to the first category in the requested cost bucket when prefilled.
   useEffect(() => {
     if (open && !isEditMode && expenseCats.length && !expenseCats.some(c => c.name === form.expense_category)) {
-      setForm(f => ({ ...f, expense_category: expenseCats[0].name }));
+      const wanted = initialValues?.category_bucket && expenseCats.find(c => c.cost_bucket === initialValues.category_bucket);
+      setForm(f => ({ ...f, expense_category: (wanted || expenseCats[0]).name }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isEditMode, expenseCats]);
+  }, [open, isEditMode, expenseCats, initialValues]);
 
   const { data: allExpenses = [] } = useQuery({
     queryKey: ['expenses'],
