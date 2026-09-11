@@ -8,16 +8,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { differenceInCalendarDays, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
 import ScheduleDatePicker from '@/components/projects/ScheduleDatePicker';
-import { calcEndDate, formatShortDate, shiftWeekdays, weekdaysBetween } from '@/lib/projectDates';
+import { calcEndDate, formatShortDate, planCrewShift, shiftWeekdays, weekdaysBetween } from '@/lib/projectDates';
 
 const TASK_DATE_FIELDS = ['due_date', 'eta_start', 'eta_end'];
 
 // Quick schedule edit from the Project Schedules calendar: budget hours, start date, timeframe and
 // end date. Pushing the start back moves the end with it, recalculated from the timeframe when
 // there is one, otherwise shifted by the same number of weekdays so the job keeps its length. Open
-// tasks shift by those weekdays too; completed tasks keep their dates.
+// tasks and upcoming crew assignments (with their daily goals) shift by those weekdays too. Completed
+// tasks and past assignments keep their dates. Subcontractor dates are left for the office to move.
 export default function ProjectEditDialog({ project, open, onOpenChange, onSaved }) {
   const [budgetHours, setBudgetHours] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -27,10 +29,21 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
   const [saving, setSaving] = useState(false);
   const [moveTasks, setMoveTasks] = useState(true);
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data: projectTasks = [] } = useQuery({
     queryKey: ['tasks', project?.id],
     queryFn: () => base44.entities.Task.filter({ project_id: project.id }),
+    enabled: !!project?.id && open,
+  });
+  const { data: crewEntries = [] } = useQuery({
+    queryKey: ['crew-schedule', 'project', project?.id],
+    queryFn: () => base44.entities.CrewScheduleEntry.filter({ project_id: project.id }),
+    enabled: !!project?.id && open,
+  });
+  const { data: approvedTimeOff = [] } = useQuery({
+    queryKey: ['time-off-approved'],
+    queryFn: () => base44.entities.TimeOffRequest.filter({ status: 'approved' }),
     enabled: !!project?.id && open,
   });
 
@@ -82,6 +95,41 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
   const tasksToMove = shift
     ? projectTasks.filter(t => t.status !== 'completed' && TASK_DATE_FIELDS.some(k => t[k]))
     : [];
+  // Days already worked stay put; they are what the timecards were logged against.
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const dayOf = (e) => String(e.scheduled_date).slice(0, 10);
+  const entriesToMove = shift ? crewEntries.filter(e => e.scheduled_date && dayOf(e) >= todayStr) : [];
+  const timeOffClashes = entriesToMove.filter(e => {
+    const d = shiftWeekdays(dayOf(e), shift);
+    return approvedTimeOff.some(r => r.user_id === e.user_id && d >= r.start_date && d <= r.end_date);
+  });
+  const somethingToMove = tasksToMove.length + entriesToMove.length > 0;
+
+  // planCrewShift decides which entries can move without doubling someone up on a day and orders
+  // the writes so none collides mid-way (the table allows one entry per person, project and day).
+  const moveCrewEntries = async () => {
+    const plan = planCrewShift(
+      crewEntries.filter(e => e.scheduled_date).map(e => ({ id: e.id, user_id: e.user_id, date: dayOf(e) })),
+      new Set(entriesToMove.map(e => e.id)),
+      shift,
+    );
+    const moved = new Map();
+    let skipped = plan.stay.length;
+    for (const m of plan.moves) {
+      try {
+        await base44.entities.CrewScheduleEntry.update(m.id, { scheduled_date: m.to });
+        moved.set(m.id, m.to);
+      } catch {
+        skipped++;
+      }
+    }
+    if (moved.size) {
+      const goals = await base44.entities.DailyGoal.filter({ project_id: project.id });
+      await Promise.all(goals.filter(g => moved.has(g.schedule_entry_id))
+        .map(g => base44.entities.DailyGoal.update(g.id, { scheduled_date: moved.get(g.schedule_entry_id) })));
+    }
+    return { moved: moved.size, skipped };
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -92,6 +140,12 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
         ))));
         qc.invalidateQueries({ queryKey: ['tasks'] });
       }
+      let crew = { moved: 0, skipped: 0 };
+      if (moveTasks && entriesToMove.length) {
+        crew = await moveCrewEntries();
+        qc.invalidateQueries({ queryKey: ['crew-schedule'] });
+        qc.invalidateQueries({ queryKey: ['daily-goals-today'] });
+      }
       await base44.entities.Project.update(project.id, {
         budget_hours: parseFloat(budgetHours) || 0,
         start_date: startDate || null,
@@ -99,6 +153,13 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
         duration_unit: durationUnit,
         target_end_date: endDate || null,
       });
+      if (crew.skipped) {
+        toast({
+          title: `${crew.skipped} crew assignment${crew.skipped === 1 ? '' : 's'} not moved`,
+          description: 'Each would have put someone on this job twice in one day, usually weekend work folding onto a weekday. They stayed on their old dates; check the crew schedule.',
+          variant: 'destructive',
+        });
+      }
       onSaved?.();
     } finally {
       setSaving(false);
@@ -131,12 +192,20 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
                 {Math.abs(moved)} day{Math.abs(moved) === 1 ? '' : 's'} {moved > 0 ? 'later' : 'earlier'} than {formatShortDate(project.start_date)}.
               </p>
             )}
-            {tasksToMove.length > 0 && (
+            {somethingToMove && (
               <label className="flex items-start gap-2 mt-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox checked={moveTasks} onCheckedChange={v => setMoveTasks(!!v)} className="mt-0.5" />
                 <span>
-                  Move {tasksToMove.length} open task{tasksToMove.length === 1 ? '' : 's'} {Math.abs(shift)} work day{Math.abs(shift) === 1 ? '' : 's'} {shift > 0 ? 'later' : 'earlier'} too.
-                  Completed tasks keep their dates.
+                  Move {[
+                    tasksToMove.length > 0 && `${tasksToMove.length} open task${tasksToMove.length === 1 ? '' : 's'}`,
+                    entriesToMove.length > 0 && `${entriesToMove.length} upcoming crew assignment${entriesToMove.length === 1 ? '' : 's'}`,
+                  ].filter(Boolean).join(' and ')} {Math.abs(shift)} work day{Math.abs(shift) === 1 ? '' : 's'} {shift > 0 ? 'later' : 'earlier'} too.
+                  Completed tasks, past crew days and subcontractor dates stay where they are.
+                  {moveTasks && timeOffClashes.length > 0 && (
+                    <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                      {timeOffClashes.length} assignment{timeOffClashes.length === 1 ? '' : 's'} will land on approved time off: {[...new Set(timeOffClashes.map(e => e.user_name || 'a crew member'))].join(', ')}.
+                    </span>
+                  )}
                 </span>
               </label>
             )}

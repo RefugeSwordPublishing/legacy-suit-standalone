@@ -51,5 +51,37 @@ export function shiftWeekdays(ymd, n) {
   return format(d, 'yyyy-MM-dd');
 }
 
+// Plan moving crew schedule entries by n weekdays. entries = every entry on the project, each
+// { id, user_id, date } with date as yyyy-MM-dd; movable = the ids allowed to move (upcoming ones).
+//
+// One person has at most one entry per project per day, and a weekday shift is not one-to-one: a
+// Saturday, a Sunday and the Friday before can all land on the same Monday. So one entry per person
+// per target day moves, preferring one that started on a weekday, and an entry whose target is held
+// by one that is staying (a past day, say) stays too. Repeats until nothing changes, because an
+// entry that stays can block another. Returns moves in a safe order (latest first when moving
+// later, earliest first when moving earlier) and the ids left where they were.
+export function planCrewShift(entries, movable, n) {
+  const key = (u, d) => `${u}|${d}`;
+  const weekend = (d) => isWeekend(parseISO(d));
+  const plan = entries.filter((e) => movable.has(e.id)).map((e) => ({ ...e, to: shiftWeekdays(e.date, n) }));
+  const stay = new Set();
+  for (let changed = true; changed; ) {
+    changed = false;
+    const occupied = new Set(entries.filter((e) => !movable.has(e.id) || stay.has(e.id)).map((e) => key(e.user_id, e.date)));
+    const claimed = new Set();
+    const candidates = plan.filter((p) => !stay.has(p.id)).sort((a, b) => weekend(a.date) - weekend(b.date));
+    for (const p of candidates) {
+      const k = key(p.user_id, p.to);
+      if (occupied.has(k) || claimed.has(k)) { stay.add(p.id); changed = true; break; }
+      claimed.add(k);
+    }
+  }
+  const moves = plan
+    .filter((p) => !stay.has(p.id))
+    .sort((a, b) => (n > 0 ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))
+    .map((p) => ({ id: p.id, from: p.date, to: p.to }));
+  return { moves, stay: [...stay] };
+}
+
 export const formatShortDate = (ymd) =>
   ymd ? parseISO(ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
