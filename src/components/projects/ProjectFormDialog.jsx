@@ -10,36 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ClipboardList } from 'lucide-react';
-import { addDays, parseISO, isWeekend } from 'date-fns';
+import { calcEndDate } from '@/lib/projectDates';
 import ClientPicker from './ClientPicker';
 import ProjectColorPicker from '@/components/schedules/ProjectColorPicker';
 import ScheduleDatePicker from './ScheduleDatePicker';
 import { useToast } from '@/components/ui/use-toast';
 import { deriveInvoicePrefix } from '@/lib/invoiceNumber';
 import AddressAutocomplete from '@/components/shared/AddressAutocomplete';
-
-// Add N weekdays (skipping Sat/Sun) from a start date
-function addWeekdays(start, n) {
-  let date = new Date(start);
-  let added = 0;
-  while (added < n) {
-    date = addDays(date, 1);
-    if (!isWeekend(date)) added++;
-  }
-  return date;
-}
-
-function calcEndDate(startDate, durationValue, durationUnit) {
-  if (!startDate || !durationValue || durationValue <= 0) return '';
-  const start = typeof startDate === 'string' ? parseISO(startDate) : startDate;
-  let end;
-  if (durationUnit === 'weeks') {
-    end = addDays(start, durationValue * 7 - 1);
-  } else {
-    end = addWeekdays(start, durationValue - 1);
-  }
-  return end.toISOString().split('T')[0];
-}
 
 const emptyProject = {
   name: '', address: '', client_name: '', status: 'planning',
