@@ -39,7 +39,7 @@ function StatusPill({ status }) {
   );
 }
 
-function InvoiceCard({ inv, onEdit, onDelete, onPrint, onPush, provider }) {
+function InvoiceCard({ inv, onEdit, onDelete, onPrint, onPush, onMarkSent, provider }) {
   const [pushing, setPushing] = useState(false);
   const doPush = async () => { setPushing(true); try { await onPush(inv); } finally { setPushing(false); } };
   const acct = provider === 'xero'
@@ -92,9 +92,19 @@ function InvoiceCard({ inv, onEdit, onDelete, onPrint, onPush, provider }) {
             style={{ border: `1px solid ${acct.color}`, color: acct.color, borderRadius: 4, background: 'transparent' }}
           >
             {pushing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-            {pushing ? 'Pushing…' : `Push to ${acct.label}`}
+            {pushing ? 'Pushing...' : `Push to ${acct.label}`}
           </button>
         ))}
+        {(inv.status || 'draft') === 'draft' && (
+          <button
+            onClick={() => onMarkSent(inv)}
+            className="font-highway text-xs px-3 py-1.5 transition-colors"
+            style={{ border: '1px solid hsl(var(--primary))', color: 'hsl(var(--primary))', borderRadius: 4, background: 'transparent' }}
+            title="Mark as sent if you delivered it yourself"
+          >
+            Mark Sent
+          </button>
+        )}
         <button
           onClick={() => onEdit(inv)}
           className="font-highway text-xs px-3 py-1.5 transition-colors"
@@ -114,7 +124,7 @@ function InvoiceCard({ inv, onEdit, onDelete, onPrint, onPush, provider }) {
   );
 }
 
-function InvoiceList({ invoices, onEdit, onDelete, onPrint, onPush, provider }) {
+function InvoiceList({ invoices, onEdit, onDelete, onPrint, onPush, onMarkSent, provider }) {
   if (invoices.length === 0) {
     return (
       <div className="py-16 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6 }}>
@@ -126,7 +136,7 @@ function InvoiceList({ invoices, onEdit, onDelete, onPrint, onPush, provider }) 
   return (
     <div className="space-y-3">
       {invoices.map(inv => (
-        <InvoiceCard key={inv.id} inv={inv} onEdit={onEdit} onDelete={onDelete} onPrint={onPrint} onPush={onPush} provider={provider} />
+        <InvoiceCard key={inv.id} inv={inv} onEdit={onEdit} onDelete={onDelete} onPrint={onPrint} onPush={onPush} onMarkSent={onMarkSent} provider={provider} />
       ))}
     </div>
   );
@@ -204,14 +214,31 @@ export default function Invoices() {
       if (warnings.length) {
         toast({ title: 'Pushed with warnings', description: warnings.join(' '), variant: 'destructive' });
       } else {
-        const sent = res.data?.emailed;
+        const emailed = res.data?.emailed;
         const num = res.data?.doc_number || res.data?.invoice_number || '';
-        toast({ title: `Pushed to ${label}`, description: `Invoice ${num} created${sent ? ' and emailed to the client' : ` as a draft to review in ${label}`}.` });
+        toast({
+          title: `Pushed to ${label}`,
+          description: emailed
+            ? `Invoice ${num} created, emailed to the client, and marked sent.`
+            : `Invoice ${num} created and marked sent. It has not been emailed; send it from ${label} when ready.`,
+        });
       }
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
     } catch (e) {
       toast({ title: `${label} push failed`, description: e?.message || String(e), variant: 'destructive' });
     }
+  };
+
+  // For invoices delivered outside the accounting system: printed, handed over, or emailed by hand.
+  const handleMarkSent = async (inv) => {
+    queryClient.setQueryData(['invoices'], (old = []) => old.map(i => (i.id === inv.id ? { ...i, status: 'sent' } : i)));
+    try {
+      await base44.entities.Invoice.update(inv.id, { status: 'sent' });
+      toast({ title: `${inv.invoice_number || 'Invoice'} marked sent` });
+    } catch (e) {
+      toast({ title: 'Could not mark sent', description: e?.message || String(e), variant: 'destructive' });
+    }
+    queryClient.invalidateQueries({ queryKey: ['invoices'] });
   };
 
   const filtered = {
@@ -303,13 +330,14 @@ export default function Invoices() {
             sortOptions={SORT_OPTIONS}
           />
 
-          <InvoiceList invoices={tabInvoices} onEdit={handleEdit} onDelete={handleDelete} onPrint={setPrintingInvoice} onPush={handlePush} provider={provider} />
+          <InvoiceList invoices={tabInvoices} onEdit={handleEdit} onDelete={handleDelete} onPrint={setPrintingInvoice} onPush={handlePush} onMarkSent={handleMarkSent} provider={provider} />
         </>
       )}
 
       <InvoiceFormDialog
         open={showForm}
         invoice={editingInvoice}
+        provider={provider}
         onClose={handleClose}
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: ['invoices'] });

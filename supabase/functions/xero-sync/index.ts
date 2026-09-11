@@ -112,6 +112,10 @@ Deno.serve(async (req) => {
       if (!invoiceId) return json({ error: 'invoiceId is required' }, { status: 400 });
       const { data: invoice } = await admin.from('invoices').select('*').eq('id', invoiceId).eq('company_id', companyId).maybeSingle();
       if (!invoice) return json({ error: 'Invoice not found' }, { status: 404 });
+      // Pushing creates, never updates, so a second push would put a duplicate invoice in Xero.
+      if (invoice.xero_invoice_id) {
+        return json({ error: 'This invoice is already in Xero. Open it there to make changes.' }, { status: 409 });
+      }
 
       const lineItems = invoice.line_items || [];
       const sovEntries = invoice.sov_entries || [];
@@ -222,7 +226,8 @@ Deno.serve(async (req) => {
         try { await xero('POST', `/Invoices/${xId}/Email`, token, tenantId, {}); emailed = true; } catch (_) { /* leave as authorised */ }
       }
       const upd: Record<string, unknown> = { xero_invoice_id: xId, xero_invoice_url: url };
-      if (emailed) upd.status = 'sent';
+      // In Xero means issued, emailed or not (see quickbooks-sync). Paid and void are left alone.
+      if (xId && (!invoice.status || invoice.status === 'draft')) upd.status = 'sent';
       await admin.from('invoices').update(upd).eq('id', invoiceId);
       await admin.from('xero_integration_settings').update({ last_sync_at: new Date().toISOString() }).eq('company_id', companyId);
 

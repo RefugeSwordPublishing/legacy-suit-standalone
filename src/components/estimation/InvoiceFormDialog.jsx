@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Plus, Trash2, ExternalLink, CheckCircle2, LayoutList, Table2, Receipt } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/components/ui/use-toast';
 import InvoiceSOVPanel from './InvoiceSOVPanel';
@@ -55,7 +55,9 @@ const PAYMENT_TERMS = [
 function calcDueDate(issueDate, terms) {
   const term = PAYMENT_TERMS.find(t => t.value === terms);
   if (!term || !issueDate) return '';
-  const d = new Date(issueDate);
+  // parseISO reads a bare yyyy-MM-dd as local midnight. new Date() read it as UTC midnight, which is
+  // the previous evening in US time zones, so every due date landed a day early.
+  const d = parseISO(issueDate);
   d.setDate(d.getDate() + term.days);
   return format(d, 'yyyy-MM-dd');
 }
@@ -73,7 +75,15 @@ const EMPTY_LINE = () => ({
   line_total: 0,
 });
 
-export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
+const STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'void', label: 'Void' },
+];
+
+// provider = the connected accounting system ('quickbooks' | 'xero' | null), from the Invoices page.
+export default function InvoiceFormDialog({ open, invoice, onClose, onSaved, provider = null }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -89,6 +99,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
   const [issueDate, setIssueDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dueDate, setDueDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('net_30');
+  const [status, setStatus] = useState('draft');
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState([EMPTY_LINE()]);
   const [sovEntries, setSovEntries] = useState([]);
@@ -131,6 +142,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
         setIssueDate(invoice.issue_date || format(new Date(), 'yyyy-MM-dd'));
         setDueDate(invoice.due_date || '');
         setPaymentTerms(invoice.payment_terms || 'net_30');
+        setStatus(invoice.status || 'draft');
         setNotes(invoice.notes || '');
         setLineItems(invoice.line_items?.length ? invoice.line_items : [EMPTY_LINE()]);
         setSovEntries(invoice.sov_entries || []);
@@ -143,6 +155,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
         setIssueDate(format(new Date(), 'yyyy-MM-dd'));
         setDueDate(''); setNotes('');
         setPaymentTerms('net_30');
+        setStatus('draft');
         setLineItems([EMPTY_LINE()]);
         setSovEntries([]);
         setCoSovEntries([]);
@@ -515,7 +528,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     ]);
   };
 
-  const handleSave = async (status = invoice?.status || 'draft') => {
+  const handleSave = async () => {
     if (!clientId || !projectId) {
       toast({ title: 'Please select a client and project', variant: 'destructive' });
       return;
@@ -533,13 +546,20 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     onSaved();
   };
 
-  const handlePushToQBO = async () => {
+  const acct = provider === 'xero'
+    ? { label: 'Xero', fn: 'xeroSyncV2', id: invoice?.xero_invoice_id, url: invoice?.xero_invoice_url }
+    : { label: 'QuickBooks', fn: 'quickbooksSyncV2', id: invoice?.quickbooks_invoice_id, url: invoice?.quickbooks_invoice_url };
+  const alreadyPushed = !!acct.id;
+
+  // Saves first, then pushes. The server marks the invoice sent once it exists in the accounting
+  // system, so a failed push leaves it at whatever status it had rather than claiming it went out.
+  const handlePush = async () => {
     if (!clientId || !projectId) {
       toast({ title: 'Please select a client and project', variant: 'destructive' });
       return;
     }
     setPushing(true);
-    const payload = buildPayload('sent');
+    const payload = buildPayload(status);
     let savedInvoice;
     if (invoice) {
       savedInvoice = await base44.entities.Invoice.update(invoice.id, payload);
@@ -549,7 +569,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
     const invoiceId = savedInvoice?.id || invoice?.id;
     await syncExpenseBilling(invoiceId);
     try {
-      const res = await base44.functions.invoke('quickbooksSyncV2', { action: 'push_invoice', invoice_id: invoiceId });
+      const res = await base44.functions.invoke(acct.fn, { action: 'push_invoice', invoiceId });
       // invoke resolves with { data } even when the function reports a failure, so a returned
       // error never reaches the catch below. Without this the dialog claimed success on every
       // push, including ones that failed or came back with warnings.
@@ -559,14 +579,14 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
         toast({ title: 'Pushed with warnings', description: warnings.join(' '), variant: 'destructive' });
       } else {
         toast({
-          title: 'Pushed to QuickBooks',
+          title: `Pushed to ${acct.label}`,
           description: res.data?.emailed
-            ? 'Invoice created and emailed to the client.'
-            : 'Invoice created as a draft to review in QuickBooks.',
+            ? 'Invoice created and emailed to the client. Marked sent.'
+            : `Invoice created and marked sent. It has not been emailed; send it from ${acct.label} when ready.`,
         });
       }
     } catch (e) {
-      toast({ title: 'Saved, but QBO sync failed', description: e.message, variant: 'destructive' });
+      toast({ title: `Saved, but the ${acct.label} push failed`, description: e.message, variant: 'destructive' });
     }
     setPushing(false);
     onSaved();
@@ -617,7 +637,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
           </div>
 
           {/* Invoice number + dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label>Invoice Number</Label>
               <Input value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="PROJ-001" />
@@ -632,6 +652,15 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PAYMENT_TERMS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -950,13 +979,22 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved }) {
 
         <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button variant="outline" onClick={() => handleSave()} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Draft'}
+          <Button variant={provider && !alreadyPushed ? 'outline' : 'default'} onClick={handleSave} disabled={saving || pushing}>
+            {saving ? 'Saving...' : status === 'draft' ? 'Save Draft' : 'Save'}
           </Button>
-          <Button onClick={handlePushToQBO} disabled={pushing} className="gap-2">
-            <ExternalLink className="w-4 h-4" />
-            {pushing ? 'Pushing...' : 'Push to QuickBooks'}
-          </Button>
+          {/* A second push would create a duplicate invoice in the accounting system. */}
+          {provider && (alreadyPushed ? (
+            <Button variant="outline" asChild className="gap-2">
+              <a href={acct.url || '#'} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-4 h-4" /> Open in {acct.label}
+              </a>
+            </Button>
+          ) : (
+            <Button onClick={handlePush} disabled={pushing || saving} className="gap-2">
+              <ExternalLink className="w-4 h-4" />
+              {pushing ? 'Pushing...' : `Push to ${acct.label}`}
+            </Button>
+          ))}
         </DialogFooter>
       </DialogContent>
     </Dialog>

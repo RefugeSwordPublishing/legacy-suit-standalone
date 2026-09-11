@@ -190,6 +190,10 @@ Deno.serve(async (req) => {
 
       const { data: invoice } = await admin.from('invoices').select('*').eq('id', invoiceId).eq('company_id', companyId).maybeSingle();
       if (!invoice) return json({ error: 'Invoice not found' }, { status: 404 });
+      // Pushing creates, never updates, so a second push would put a duplicate invoice in QBO.
+      if (invoice.quickbooks_invoice_id) {
+        return json({ error: 'This invoice is already in QuickBooks. Open it there to make changes.' }, { status: 409 });
+      }
       const lineItems = invoice.line_items || [];
       const sovEntries = invoice.sov_entries || [];
       const isSov = invoice.billing_mode === 'schedule_of_values';
@@ -420,7 +424,7 @@ Deno.serve(async (req) => {
       const qboDoc = created?.Invoice?.DocNumber;
       const qboUrl = qboId ? `https://app.qbo.intuit.com/app/invoice?txnId=${qboId}` : null;
 
-      // Only email the client (and mark the GuildWright invoice 'sent') when auto-send is on.
+      // Only email the client when auto-send is on.
       let emailed = false;
       if (autoSend && qboId && billEmail) {
         try {
@@ -430,7 +434,10 @@ Deno.serve(async (req) => {
       }
 
       const invUpdate: Record<string, unknown> = { quickbooks_invoice_id: qboId, quickbooks_invoice_url: qboUrl };
-      if (emailed) invUpdate.status = 'sent';
+      // Once it exists in QBO the invoice is issued: it has a number there and sits in receivables,
+      // emailed or not. Left as draft, a pushed Schedule of Values invoice also dropped out of the
+      // "already billed" totals on the next one. Paid and void are left alone.
+      if (qboId && (!invoice.status || invoice.status === 'draft')) invUpdate.status = 'sent';
       await admin.from('invoices').update(invUpdate).eq('id', invoiceId);
 
       return json({ quickbooks_invoice_id: qboId, doc_number: qboDoc, url: qboUrl, emailed, warnings: [...new Set(warnings)] });

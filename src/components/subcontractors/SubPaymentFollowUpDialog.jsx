@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Receipt, Clock, Loader2 } from 'lucide-react';
-import { readLaborHourRate } from '@/lib/laborHourRate';
+import { DEFAULT_LABOR_HOUR_RATE, fetchLaborHourRate } from '@/lib/laborHourRate';
 
 function fmt(n) {
   return `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -20,10 +20,14 @@ export function hoursForPayment(amount, rate) {
 //   step 'expense'  add the payment as a project expense (the parent opens the prefilled form)
 //   step 'hours'    deduct the equivalent crew hours from the project's budget hours
 export default function SubPaymentFollowUpDialog({ open, step, amount, contractorName, project, busy, onDismiss, onExpense, onHours }) {
-  const [rate, setRate] = useState(readLaborHourRate);
+  const [rate, setRate] = useState(DEFAULT_LABOR_HOUR_RATE);
 
-  // Re-read the rate each time the hours question comes up, in case Estimate Settings changed it.
-  useEffect(() => { if (open && step === 'hours') setRate(readLaborHourRate()); }, [open, step]);
+  // Read the company rate each time the hours question comes up, in case Estimate Settings changed.
+  useEffect(() => {
+    let cancelled = false;
+    if (open && step === 'hours') fetchLaborHourRate().then((n) => { if (!cancelled) setRate(n); });
+    return () => { cancelled = true; };
+  }, [open, step]);
 
   const rateNum = Number(rate) || 0;
   const hours = hoursForPayment(amount, rateNum);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { deriveInvoicePrefix } from '@/lib/invoiceNumber';
-import { readLaborHourRate } from '@/lib/laborHourRate';
+import { useLaborHourRate } from '@/lib/laborHourRate';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ export default function CreateProjectFromEstimateDialog({ open, onOpenChange, es
     return () => { active = false; };
   }, [open, estimate?.client_id]);
 
-  const laborHourRate = readLaborHourRate();
+  const { rate: laborHourRate } = useLaborHourRate();
 
   // Sum labor line_total values, then divide by the configured labor hour rate
   const laborTotal = (estimate?.sections || [])

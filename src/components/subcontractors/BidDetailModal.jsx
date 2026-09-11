@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Send, CheckCircle, DollarSign, Calendar, FileText, Square, User, PlusCircle, ClipboardCheck, Gavel } from 'lucide-react';
 import SignedImage from '@/components/shared/SignedImage';
 import { format, parseISO } from 'date-fns';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 import ChangeOrderDialog from './ChangeOrderDialog';
 import ManualApproveDialog from './ManualApproveDialog';
 import PartialPaymentDialog from './PartialPaymentDialog';

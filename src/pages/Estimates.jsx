@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from '@/lib/notify';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
@@ -14,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Label } from '@/components/ui/label';
 import ListToolbar from '@/components/shared/ListToolbar';
 import { naturalCompare, byDateDesc } from '@/lib/naturalSort';
-import { readLaborHourRate, saveLaborHourRate } from '@/lib/laborHourRate';
+import { useLaborHourRate } from '@/lib/laborHourRate';
 
 const EST_SORT_OPTIONS = [
   { value: 'recent', label: 'Recently added' },
@@ -44,14 +45,18 @@ export default function Estimates() {
   const [activeTab, setActiveTab] = useState('estimates');
   const [rapidOpen, setRapidOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [laborHourRate, setLaborHourRate] = useState(readLaborHourRate);
+  const { rate: laborHourRate, save: saveLaborHourRate } = useLaborHourRate();
+  const [rateInput, setRateInput] = useState('');
+  useEffect(() => { setRateInput(String(laborHourRate)); }, [laborHourRate]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const handleLaborRateChange = (val) => {
-    const num = Number(val);
-    setLaborHourRate(num);
-    saveLaborHourRate(num);
+  // Saved company-wide on blur or Enter, not per keystroke.
+  const commitLaborRate = async () => {
+    if (Number(rateInput) === laborHourRate) return;
+    const err = await saveLaborHourRate(rateInput);
+    if (err) { toast.error(err); setRateInput(String(laborHourRate)); }
+    else toast.success(`Labor hour rate set to $${Number(rateInput)}/hr for the company.`);
   };
 
   const { data: estimates = [], isLoading } = useQuery({
@@ -110,12 +115,15 @@ export default function Estimates() {
                 <Input
                   type="number"
                   min={1}
-                  value={laborHourRate}
-                  onChange={e => handleLaborRateChange(e.target.value)}
+                  value={rateInput}
+                  onChange={e => setRateInput(e.target.value)}
+                  onBlur={commitLaborRate}
+                  onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                   className="h-8 text-sm"
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Used to calculate budget hours when creating a project from an approved estimate.
+                  Converts labor dollars to hours: budget hours on a project created from an approved
+                  estimate, and the hours a subcontractor payment takes off a job. Applies to the whole company.
                 </p>
               </div>
             </PopoverContent>
