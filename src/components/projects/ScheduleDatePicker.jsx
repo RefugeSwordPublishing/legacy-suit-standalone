@@ -157,15 +157,19 @@ export default function ScheduleDatePicker({ value, onChange, excludeProjectId }
                           className={[
                             'border-r border-border last:border-r-0 transition-colors cursor-pointer hover:bg-accent/10',
                             !inMonth ? 'bg-muted/20' : '',
+                            isCurrentDay && !isSelected ? 'bg-accent/10' : '',
                             isSelected ? 'bg-accent/20' : '',
                           ].join(' ')}
+                          title={isCurrentDay ? 'Today' : undefined}
                           style={{ minHeight: rowHeight }}
                         >
                           <p className={[
                             'text-[11px] font-semibold p-1.5 w-fit rounded-full mx-auto text-center',
-                            isSelected ? 'bg-accent text-accent-foreground w-6 h-6 flex items-center justify-center' : '',
-                            isCurrentDay && !isSelected ? 'text-accent font-bold' : '',
-                            !inMonth ? 'text-muted-foreground/40' : 'text-foreground',
+                            isSelected
+                              ? 'bg-accent text-accent-foreground w-6 h-6 flex items-center justify-center'
+                              : isCurrentDay
+                                ? 'ring-2 ring-accent text-accent font-bold w-6 h-6 flex items-center justify-center'
+                                : !inMonth ? 'text-muted-foreground/40' : 'text-foreground',
                           ].join(' ')}>
                             {format(day, 'd')}
                           </p>

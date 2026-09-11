@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addMonths, subMonths, eachDayOfInterval, isSameMonth, isWithinInterval,
-  differenceInDays, max, min, parseISO
+  differenceInDays, max, min, parseISO, isToday
 } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -188,16 +188,26 @@ export default function MonthlyScheduleView({ projects, subContractorTasks = [],
               {/* Day cells */}
               {week.map((day, dayIdx) => {
                 const inMonth = isSameMonth(day, currentDate);
+                const today = isToday(day);
                 return (
                   <div
                     key={dayIdx}
                     onClick={() => inMonth && setNewProjectDate(day)}
-                    className={`border-r border-border last:border-r-0 cursor-pointer hover:bg-muted/10 transition-colors ${!inMonth ? 'bg-muted/20' : ''}`}
+                    className={`border-r border-border last:border-r-0 cursor-pointer hover:bg-muted/10 transition-colors ${!inMonth ? 'bg-muted/20' : ''} ${today ? 'bg-accent/10' : ''}`}
                     style={{ minHeight: rowHeight }}
                   >
-                    <p className={`text-xs font-semibold p-2 ${inMonth ? 'text-foreground' : 'text-muted-foreground/50'}`}>
-                      {format(day, 'd')}
-                    </p>
+                    {today ? (
+                      <p className="flex items-center gap-1.5 px-1.5 pt-1">
+                        <span className="w-6 h-6 rounded-full bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center">
+                          {format(day, 'd')}
+                        </span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">Today</span>
+                      </p>
+                    ) : (
+                      <p className={`text-xs font-semibold p-2 ${inMonth ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                        {format(day, 'd')}
+                      </p>
+                    )}
                   </div>
                 );
               })}

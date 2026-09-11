@@ -23,5 +23,33 @@ export function calcEndDate(startDate, durationValue, durationUnit) {
   return format(end, 'yyyy-MM-dd');
 }
 
+// Signed count of weekdays from one date to another: moving Fri to the next Mon is 1, Mon to the
+// previous Fri is -1. Used to reschedule a project by work days rather than calendar days.
+export function weekdaysBetween(from, to) {
+  const a = typeof from === 'string' ? parseISO(from) : from;
+  const b = typeof to === 'string' ? parseISO(to) : to;
+  const dir = b > a ? 1 : -1;
+  let n = 0;
+  for (let d = a; format(d, 'yyyy-MM-dd') !== format(b, 'yyyy-MM-dd'); ) {
+    d = addDays(d, dir);
+    // Count the weekday we land on going forward, or the one we leave going back.
+    if (!isWeekend(dir > 0 ? d : addDays(d, 1))) n += dir;
+  }
+  return n;
+}
+
+// Move a yyyy-MM-dd date by n weekdays (negative moves back). Never lands on a weekend unless n is 0.
+export function shiftWeekdays(ymd, n) {
+  if (!ymd || !n) return ymd;
+  const dir = n > 0 ? 1 : -1;
+  let d = parseISO(ymd);
+  let left = Math.abs(n);
+  while (left > 0) {
+    d = addDays(d, dir);
+    if (!isWeekend(d)) left--;
+  }
+  return format(d, 'yyyy-MM-dd');
+}
+
 export const formatShortDate = (ymd) =>
   ymd ? parseISO(ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';

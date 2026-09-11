@@ -4,15 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { base44 } from '@/api/base44Client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { differenceInCalendarDays, parseISO } from 'date-fns';
 import ScheduleDatePicker from '@/components/projects/ScheduleDatePicker';
-import { calcEndDate, formatShortDate } from '@/lib/projectDates';
+import { calcEndDate, formatShortDate, shiftWeekdays, weekdaysBetween } from '@/lib/projectDates';
+
+const TASK_DATE_FIELDS = ['due_date', 'eta_start', 'eta_end'];
 
 // Quick schedule edit from the Project Schedules calendar: budget hours, start date, timeframe and
 // end date. Pushing the start back moves the end with it, recalculated from the timeframe when
-// there is one, otherwise shifted by the same number of days so the job keeps its length.
+// there is one, otherwise shifted by the same number of weekdays so the job keeps its length. Open
+// tasks shift by those weekdays too; completed tasks keep their dates.
 export default function ProjectEditDialog({ project, open, onOpenChange, onSaved }) {
   const [budgetHours, setBudgetHours] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -20,9 +25,18 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
   const [durationUnit, setDurationUnit] = useState('days');
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [moveTasks, setMoveTasks] = useState(true);
+  const qc = useQueryClient();
+
+  const { data: projectTasks = [] } = useQuery({
+    queryKey: ['tasks', project?.id],
+    queryFn: () => base44.entities.Task.filter({ project_id: project.id }),
+    enabled: !!project?.id && open,
+  });
 
   useEffect(() => {
     if (project) {
+      setMoveTasks(true);
       setBudgetHours(project.budget_hours ?? '');
       setStartDate(project.start_date ?? '');
       setDurationValue(project.duration_value ?? '');
@@ -43,8 +57,7 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
     if (Number(durationValue) > 0) {
       recalcEnd(next, durationValue, durationUnit);
     } else if (startDate && endDate) {
-      const shift = differenceInCalendarDays(parseISO(next), parseISO(startDate));
-      setEndDate(format(addDays(parseISO(endDate), shift), 'yyyy-MM-dd'));
+      setEndDate(shiftWeekdays(endDate, weekdaysBetween(startDate, next)));
     }
     setStartDate(next);
   };
@@ -64,9 +77,21 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
     ? differenceInCalendarDays(parseISO(startDate), parseISO(project.start_date))
     : 0;
 
+  // Work days the start moved, measured from the saved start, and the open dated tasks that follow.
+  const shift = project.start_date && startDate ? weekdaysBetween(project.start_date, startDate) : 0;
+  const tasksToMove = shift
+    ? projectTasks.filter(t => t.status !== 'completed' && TASK_DATE_FIELDS.some(k => t[k]))
+    : [];
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      if (moveTasks && tasksToMove.length) {
+        await Promise.all(tasksToMove.map(t => base44.entities.Task.update(t.id, Object.fromEntries(
+          TASK_DATE_FIELDS.filter(k => t[k]).map(k => [k, shiftWeekdays(String(t[k]).slice(0, 10), shift)]),
+        ))));
+        qc.invalidateQueries({ queryKey: ['tasks'] });
+      }
       await base44.entities.Project.update(project.id, {
         budget_hours: parseFloat(budgetHours) || 0,
         start_date: startDate || null,
@@ -105,6 +130,15 @@ export default function ProjectEditDialog({ project, open, onOpenChange, onSaved
               <p className="text-xs text-muted-foreground mt-1">
                 {Math.abs(moved)} day{Math.abs(moved) === 1 ? '' : 's'} {moved > 0 ? 'later' : 'earlier'} than {formatShortDate(project.start_date)}.
               </p>
+            )}
+            {tasksToMove.length > 0 && (
+              <label className="flex items-start gap-2 mt-2 text-xs text-muted-foreground cursor-pointer">
+                <Checkbox checked={moveTasks} onCheckedChange={v => setMoveTasks(!!v)} className="mt-0.5" />
+                <span>
+                  Move {tasksToMove.length} open task{tasksToMove.length === 1 ? '' : 's'} {Math.abs(shift)} work day{Math.abs(shift) === 1 ? '' : 's'} {shift > 0 ? 'later' : 'earlier'} too.
+                  Completed tasks keep their dates.
+                </span>
+              </label>
             )}
           </div>
           <div>
