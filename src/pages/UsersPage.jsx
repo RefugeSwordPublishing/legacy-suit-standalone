@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { UserPlus, Mail, Shield, Pencil, UserX, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { SALARY_PERIODS, periodLabel, rateOnDate } from '@/lib/payRates';
+import { isArchived } from '@/lib/projectStatus';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmtMoney = (n) => `$${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
@@ -638,7 +639,7 @@ export default function UsersPage() {
              <DialogTitle>Assign Projects, {[editUser.first_name, editUser.last_name].filter(Boolean).join(' ') || editUser.email}</DialogTitle>
             </DialogHeader>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {projects.map(project => {
+              {projects.filter(project => !isArchived(project) || (editUser.assigned_project_ids || []).includes(project.id)).map(project => {
                 const assigned = (editUser.assigned_project_ids || []).includes(project.id);
                 return (
                   <button

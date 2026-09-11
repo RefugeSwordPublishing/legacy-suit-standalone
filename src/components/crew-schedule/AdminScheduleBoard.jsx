@@ -10,6 +10,7 @@ import { ROLE_LABELS } from '@/lib/permissions';
 import { useCurrentUser } from '@/lib/UserContext';
 import SetDailyGoalDialog from './SetDailyGoalDialog';
 import ProjectQuickPicker from './ProjectQuickPicker';
+import { isClosed } from '@/lib/projectStatus';
 
 const ROLE_COLORS = {
   owner: 'bg-primary/10 text-primary',
@@ -45,7 +46,7 @@ export default function AdminScheduleBoard({ users, projects, scheduleEntries, o
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const activeProjects = projects.filter(p => p.status !== 'completed');
+  const activeProjects = projects.filter(p => !isClosed(p));
   const schedulableUsers = users.filter(u => SCHEDULABLE_ROLES.includes(u.role));
 
   // Determine which days to show

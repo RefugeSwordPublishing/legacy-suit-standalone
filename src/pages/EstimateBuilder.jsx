@@ -19,6 +19,7 @@ import ScopeOfWorkEditor from '@/components/estimation/ScopeOfWorkEditor';
 import EstimateOutputSettings from '@/components/estimation/EstimateOutputSettings';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const DEFAULT_MARKUPS = { materials: 20, labor: 15, subcontractor: 10, other: 0 };
 
@@ -382,7 +383,7 @@ export default function EstimateBuilder() {
             <SelectTrigger><SelectValue placeholder="Standalone" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Standalone</SelectItem>
-              {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              {selectableProjects(projects, form.project_id).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

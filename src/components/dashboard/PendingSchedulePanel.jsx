@@ -10,6 +10,7 @@ const statusConfig = {
   active: { label: 'Active', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   on_hold: { label: 'On Hold', className: 'bg-amber-100 text-amber-700 border-amber-200' },
   completed: { label: 'Completed', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  archived: { label: 'Archived', className: 'bg-muted text-muted-foreground border-border' },
 };
 
 export default function PendingSchedulePanel({ open, onOpenChange, projects, onSaved }) {

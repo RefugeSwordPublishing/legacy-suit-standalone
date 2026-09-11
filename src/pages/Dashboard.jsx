@@ -13,6 +13,7 @@ import ClockWidget from '@/components/timeclock/ClockWidget';
 import PendingSchedulePanel from '@/components/dashboard/PendingSchedulePanel';
 import SetupChecklist from '@/components/onboarding/SetupChecklist';
 import { format } from 'date-fns';
+import { isClosed } from '@/lib/projectStatus';
 
 export default function Dashboard() {
   const [showNewProject, setShowNewProject] = useState(false);
@@ -98,7 +99,7 @@ export default function Dashboard() {
   const newRequests = clientRequests.filter(r => r.status === 'open').length;
 
   // Projects needing a schedule (no start date, not completed)
-  const pendingScheduleProjects = allProjects.filter(p => !p.start_date && p.status !== 'completed');
+  const pendingScheduleProjects = allProjects.filter(p => !p.start_date && !isClosed(p));
   const pendingScheduleCount = pendingScheduleProjects.length;
 
   // My tasks = assigned to me, not completed

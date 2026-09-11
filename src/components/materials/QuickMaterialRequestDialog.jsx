@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, AlertTriangle, Clock, Calendar } from 'lucide-react';
 import { sortByName } from '@/lib/naturalSort';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const PRIORITY_OPTIONS = [
   { value: 'urgent', label: 'ASAP', icon: AlertTriangle, className: 'bg-red-100 text-red-700 border-red-200' },
@@ -119,7 +120,7 @@ export default function QuickMaterialRequestDialog({ open, onOpenChange, project
                   <SelectValue placeholder="Select a project..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortByName(projects).map(p => (
+                  {sortByName(selectableProjects(projects, projectId)).map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>

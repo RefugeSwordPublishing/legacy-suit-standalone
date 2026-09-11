@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { sortByName } from '@/lib/naturalSort';
 import { taskAssignees } from '@/lib/taskAssignees';
 import AssigneeSelect from '@/components/tasks/AssigneeSelect';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const priorityConfig = {
   low: { label: 'Low', className: 'bg-slate-100 text-slate-600' },
@@ -439,7 +440,7 @@ export default function Tasks() {
                       <Select value={form.project_id} onValueChange={val => setForm({ ...form, project_id: val })}>
                       <SelectTrigger><SelectValue placeholder="Select project..." /></SelectTrigger>
                       <SelectContent>
-                      {visibleProjects.map(p => (
+                      {selectableProjects(visibleProjects, form.project_id).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                       </SelectContent>

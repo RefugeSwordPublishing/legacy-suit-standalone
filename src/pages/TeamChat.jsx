@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Send, Trash2, Users, MessageSquare, FolderKanban, Archive, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { isClosed } from '@/lib/projectStatus';
 
 const MANAGEMENT_ROLES = ['owner', 'coo', 'admin', 'site_manager'];
 const CAN_DELETE_ROLES = ['owner', 'coo', 'admin', 'site_manager'];
@@ -49,8 +50,8 @@ export default function TeamChat() {
     ? projects
     : projects.filter(p => (currentUser?.assigned_project_ids || []).includes(p.id));
 
-  const activeProjects = visibleProjects.filter(p => p.status !== 'completed');
-  const completedProjects = visibleProjects.filter(p => p.status === 'completed');
+  const activeProjects = visibleProjects.filter(p => !isClosed(p));
+  const completedProjects = visibleProjects.filter(p => isClosed(p));
 
   const canSeeManagement = MANAGEMENT_CHANNEL_ROLES.includes(currentUser?.role) && !isCrewMember;
   const canDelete = CAN_DELETE_ROLES.includes(currentUser?.role);

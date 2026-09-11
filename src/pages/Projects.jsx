@@ -8,6 +8,7 @@ import ProjectCard from '@/components/dashboard/ProjectCard';
 import ProjectFormDialog from '@/components/projects/ProjectFormDialog';
 import ListToolbar from '@/components/shared/ListToolbar';
 import { naturalCompare, byDateDesc } from '@/lib/naturalSort';
+import { isArchived, isClosed } from '@/lib/projectStatus';
 
 const SORT_OPTIONS = [
   { value: 'name', label: 'Name (A to Z, by number)' },
@@ -113,7 +114,7 @@ export default function Projects() {
 
   // Non-planning, non-completed
   const nonPlanningActive = baseVisible.filter(
-    p => p.status !== 'planning' && p.status !== 'completed' && matchSearch(p)
+    p => p.status !== 'planning' && !isClosed(p) && matchSearch(p)
   ).sort(sortFn);
 
   // Completed
@@ -129,6 +130,11 @@ export default function Projects() {
   const otherCompleted = isSiteManager ? completedProjects.filter(p => !assignedIds.has(p.id)) : [];
 
   const otherProjects = [...otherActive, ...otherCompleted];
+
+  // Archived: closed out, collapsed at the bottom. Site managers see only their own.
+  const archivedProjects = baseVisible
+    .filter(p => isArchived(p) && matchSearch(p) && (!isSiteManager || assignedIds.has(p.id)))
+    .sort(sortFn);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -186,6 +192,18 @@ export default function Projects() {
           />
         )}
 
+        {archivedProjects.length > 0 && (
+          <ProjectSection
+            title="Archived"
+            projects={archivedProjects}
+            tasksByProject={tasksByProject}
+            matsByProject={matsByProject}
+            hoursByProject={hoursByProject}
+            mgHoursByProject={mgHoursByProject}
+            defaultOpen={false}
+          />
+        )}
+
         {/* Other Projects, site managers only, collapsed by default */}
         {isSiteManager && otherProjects.length > 0 && (
           <ProjectSection
@@ -199,7 +217,7 @@ export default function Projects() {
           />
         )}
 
-        {planningProjects.length + (isSiteManager ? myActive : nonPlanningActive).length + myCompleted.length + otherProjects.length === 0 && (
+        {planningProjects.length + (isSiteManager ? myActive : nonPlanningActive).length + myCompleted.length + otherProjects.length + archivedProjects.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-12">No projects found.</p>
         )}
       </div>

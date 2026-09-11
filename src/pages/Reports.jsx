@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useCurrentUser } from '@/lib/UserContext';
 import { BarChart2, AlertTriangle } from 'lucide-react';
 import { ratesByUser, rateOnDate, rateForMonth, hourlyAmount, monthlyAmount } from '@/lib/payRates';
+import { isClosed } from '@/lib/projectStatus';
 
 const HIGH_ROLES = ['owner', 'coo', 'admin'];
 const MANAGEMENT_ROLES = ['owner', 'coo', 'admin', 'site_manager'];
@@ -669,7 +670,7 @@ function ScheduleReport() {
         const unit = p.duration_unit || 'days';
         plannedDays = Math.round(p.duration_value * (unit === 'weeks' ? 7 : unit === 'months' ? 30 : 1));
       }
-      const done = p.status === 'completed';
+      const done = isClosed(p);
       const actualEnd = done ? (p.completed_date || lastActivity[p.id] || p.target_end_date || today) : today;
       const actualDays = daysBetween(p.start_date, actualEnd);
       const variance = (plannedDays != null && actualDays != null) ? actualDays - plannedDays : null;

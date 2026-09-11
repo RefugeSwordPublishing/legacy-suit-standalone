@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/components/ui/use-toast';
 import InvoiceSOVPanel from './InvoiceSOVPanel';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const CATEGORIES = ['materials', 'labor', 'subcontractor', 'other'];
 const CAT_LABELS = { materials: 'Materials', labor: 'Labor', subcontractor: 'Subcontractor', other: 'Other' };
@@ -188,7 +189,7 @@ export default function InvoiceFormDialog({ open, invoice, onClose, onSaved, pro
     }
   }, [projectId, invoice, allInvoices, numSettings]);
 
-  const clientProjects = projects.filter(p =>
+  const clientProjects = selectableProjects(projects, projectId).filter(p =>
     selectedClient ? (p.client_name === selectedClient.name || p.client_id === clientId) : true
   );
 

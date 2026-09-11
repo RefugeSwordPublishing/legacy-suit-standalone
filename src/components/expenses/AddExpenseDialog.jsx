@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/use-toast';
 import DuplicateExpenseWarningDialog from './DuplicateExpenseWarningDialog';
 import { sortByName } from '@/lib/naturalSort';
 import { logError } from '@/lib/errorLog';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const EMPTY_FORM = {
   project_id: '',
@@ -347,7 +348,7 @@ Return only the JSON object. No markdown, no commentary.`;
               <Select value={form.project_id} onValueChange={handleProjectChange}>
                 <SelectTrigger><SelectValue placeholder="Select project..." /></SelectTrigger>
                 <SelectContent>
-                  {sortByName(projects).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {sortByName(selectableProjects(projects, form.project_id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

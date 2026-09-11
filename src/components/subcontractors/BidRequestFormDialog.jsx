@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2, Upload, X, FileText, Image, Gavel, ClipboardCheck } from 'lucide-react';
 import AddressAutocomplete from './AddressAutocomplete';
 import { sortByName } from '@/lib/naturalSort';
+import { selectableProjects } from '@/lib/projectStatus';
 
 const CONTRACTOR_TYPES = [
   'Plumber', 'Electrician', 'Framing', 'Roofer', 'Siding/Gutters',
@@ -231,7 +232,7 @@ export default function BidRequestFormDialog({ open, onOpenChange, bidRequest = 
             <Select value={form.project_id || ''} onValueChange={handleProjectChange}>
               <SelectTrigger><SelectValue placeholder="Select a project…" /></SelectTrigger>
               <SelectContent>
-                {sortByName(projects).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {sortByName(selectableProjects(projects, form.project_id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PlusCircle } from 'lucide-react';
 import { sortByName } from '@/lib/naturalSort';
 import { findOverlap } from '@/lib/timeEntries';
+import { selectableProjects } from '@/lib/projectStatus';
 
 export default function AddMissingTimecardDialog({ open, onOpenChange, onSuccess }) {
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -133,7 +134,7 @@ export default function AddMissingTimecardDialog({ open, onOpenChange, onSuccess
                 <SelectValue placeholder="Select project..." />
               </SelectTrigger>
               <SelectContent>
-                {sortByName(availableProjects).map(p => (
+                {sortByName(selectableProjects(availableProjects, form.project_id)).map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>

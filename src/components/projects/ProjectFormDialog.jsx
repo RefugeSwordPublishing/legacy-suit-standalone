@@ -165,6 +165,7 @@ export default function ProjectFormDialog({ open, onOpenChange, onSaved, editPro
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="on_hold">On Hold</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
             </div>
