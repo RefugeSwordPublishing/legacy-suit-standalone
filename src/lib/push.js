@@ -2,12 +2,25 @@
 // persist the subscription to Supabase, and send a test-to-self notification.
 import { supabase } from '@/api/base44Client';
 import { Capacitor } from '@capacitor/core';
+import { toast } from '@/components/ui/use-toast';
 
 const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 // ── Native (Capacitor / Android) push via FCM ────────────────────────────────
 export function isNativePlatform() {
   try { return Capacitor?.isNativePlatform?.() === true; } catch { return false; }
+}
+
+// What the OS says about notification permission for the native app.
+export async function nativePermission() {
+  if (!isNativePlatform()) return 'unsupported';
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { receive } = await PushNotifications.checkPermissions();
+    return receive; // granted | denied | prompt | prompt-with-rationale
+  } catch {
+    return 'unsupported';
+  }
 }
 
 let nativeListenersSet = false;
@@ -29,6 +42,11 @@ export async function registerNativePush() {
       } catch (e) { console.warn('FCM token store failed', e); }
     });
     PushNotifications.addListener('registrationError', (err) => console.warn('FCM registration error', err));
+    // Android hands a push straight to the app when the app is open and shows nothing itself, so
+    // a notification that arrives while someone is using GuildWright would otherwise vanish.
+    PushNotifications.addListener('pushNotificationReceived', (n) => {
+      toast({ title: n?.title || 'GuildWright', description: n?.body || '' });
+    });
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
       const url = action?.notification?.data?.url;
       if (url) window.location.href = url;

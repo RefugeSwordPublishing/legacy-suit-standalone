@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Bell, Package, CheckSquare, ClipboardList, MessageSquare, Inbox, Moon, Sun, Monitor } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import SettingsBack from '@/components/shared/SettingsBack';
+import { useTheme } from '@/lib/ThemeContext';
 import PushNotificationsCard from '@/components/settings/PushNotificationsCard';
 import {
   isBrowserNotificationSupported,
@@ -58,6 +59,7 @@ const NOTIFICATION_OPTIONS = [
 
 export default function NotificationSettings() {
   const { currentUser, refreshUser } = useCurrentUser();
+  const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const [prefs, setPrefs] = useState({});
   const [saving, setSaving] = useState(null);
@@ -142,18 +144,18 @@ export default function NotificationSettings() {
         <CardContent>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              {currentUser?.theme === 'dark' ? <Moon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" /> : <Sun className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />}
+              {theme === 'dark' ? <Moon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" /> : <Sun className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />}
               <div>
                 <Label className="text-sm font-medium">Dark Mode</Label>
                 <p className="text-xs text-muted-foreground mt-0.5">Switch between light and dark theme.</p>
               </div>
             </div>
             <Switch
-              checked={currentUser?.theme === 'dark'}
+              checked={theme === 'dark'}
               onCheckedChange={async (val) => {
-                const newTheme = val ? 'dark' : 'light';
+                // setTheme applies it here and saves it to the profile for every other device.
                 try {
-                  await base44.auth.updateMe({ theme: newTheme });
+                  await setTheme(val ? 'dark' : 'light');
                   await refreshUser();
                 } catch (e) {
                   toast({ title: 'Could not change theme', description: e?.message || String(e), variant: 'destructive' });

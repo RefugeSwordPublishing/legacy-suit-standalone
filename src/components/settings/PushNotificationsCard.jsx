@@ -7,23 +7,41 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   pushSupported, permissionState, isSubscribed,
   subscribeToPush, unsubscribeFromPush, sendTestPush,
+  isNativePlatform, nativePermission, registerNativePush,
 } from '@/lib/push';
 
 // Per-device push opt-in. Lives in Settings next to Browser Notifications.
 export default function PushNotificationsCard() {
   const { toast } = useToast();
-  const [supported] = useState(pushSupported());
-  const [perm, setPerm] = useState(permissionState());
+  // The native app delivers push through Android itself, not the browser's push API, so the web
+  // support check says "unsupported" there. Ask Capacitor instead when running natively.
+  const native = isNativePlatform();
+  const [supported] = useState(native || pushSupported());
+  const [perm, setPerm] = useState(native ? 'prompt' : permissionState());
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (supported) isSubscribed().then(setOn).catch(() => {});
-  }, [supported]);
+    if (native) {
+      nativePermission().then((p) => { setPerm(p); setOn(p === 'granted'); }).catch(() => {});
+    } else if (supported) {
+      isSubscribed().then(setOn).catch(() => {});
+    }
+  }, [native, supported]);
 
   const enable = async () => {
     setBusy(true);
     try {
+      if (native) {
+        const ok = await registerNativePush();
+        const p = await nativePermission();
+        setPerm(p);
+        setOn(ok);
+        toast(ok
+          ? { title: 'Notifications enabled on this device' }
+          : { title: 'Android blocked notifications', description: 'Turn them on for GuildWright in Android Settings, then try again.', variant: 'destructive' });
+        return;
+      }
       await subscribeToPush();
       setOn(true);
       setPerm(permissionState());
@@ -34,6 +52,10 @@ export default function PushNotificationsCard() {
   };
 
   const disable = async () => {
+    if (native) {
+      toast({ title: 'Turn these off in Android', description: 'Android Settings, Apps, GuildWright, Notifications.' });
+      return;
+    }
     setBusy(true);
     try {
       await unsubscribeFromPush();
@@ -73,7 +95,9 @@ export default function PushNotificationsCard() {
                 <Label className="text-sm font-medium">{on ? 'Enabled on this device' : 'Enable on this device'}</Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {perm === 'denied'
-                    ? 'Notifications are blocked in your browser settings. Enable them for this site, then try again.'
+                    ? (native
+                      ? 'Notifications are blocked for GuildWright. Turn them on in Android Settings, Apps, GuildWright, then try again.'
+                      : 'Notifications are blocked in your browser settings. Enable them for this site, then try again.')
                     : 'Delivers alerts to this phone or computer.'}
                 </p>
               </div>
@@ -82,7 +106,7 @@ export default function PushNotificationsCard() {
               {on ? (
                 <>
                   <Button size="sm" variant="outline" onClick={test} disabled={busy}>Send test</Button>
-                  <Button size="sm" variant="ghost" onClick={disable} disabled={busy}>Turn off</Button>
+                  {!native && <Button size="sm" variant="ghost" onClick={disable} disabled={busy}>Turn off</Button>}
                 </>
               ) : (
                 <Button size="sm" onClick={enable} disabled={busy || perm === 'denied'}>Enable</Button>
