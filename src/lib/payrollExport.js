@@ -10,6 +10,7 @@
 // generic-only and optional. duration_minutes already has break time subtracted.
 
 import { parseISO, startOfWeek, format } from 'date-fns';
+import { saveTextFile } from '@/lib/download';
 
 export const PAYROLL_PRESETS = [
   { key: 'generic', label: 'Generic', note: 'Employee, ID, hours, and optional pay. A safe default for any system.' },
@@ -163,14 +164,8 @@ export function buildDetailCsv(entries, { profilesById = {} } = {}) {
   return toCsv([header, ...rows]);
 }
 
-// Trigger a browser download of CSV text.
+// Save CSV text as a file: a download on the web, the share sheet in the native app.
 export function downloadCsv(filename, csv) {
   // Prepend a UTF-8 BOM so Excel opens accented names correctly.
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  return saveTextFile(filename, '﻿' + csv);
 }

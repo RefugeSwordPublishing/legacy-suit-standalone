@@ -140,13 +140,20 @@ export default function TimecardReport() {
     } finally { setSavingSettings(false); }
   };
 
+  const saveCsv = async (filename, csv) => {
+    try {
+      await downloadCsv(filename, csv);
+    } catch (e) {
+      toast({ title: 'Could not export', description: e?.message || String(e), variant: 'destructive' });
+    }
+  };
   const exportSummary = () => {
     const csv = buildSummaryCsv(payrollRows, { preset, includePay, profilesById, ratesByUser });
-    downloadCsv(`payroll_${preset}_${startDate}_${endDate}.csv`, csv);
+    saveCsv(`payroll_${preset}_${startDate}_${endDate}.csv`, csv);
   };
   const exportDetail = () => {
     const csv = buildDetailCsv(filteredEntries, { profilesById });
-    downloadCsv(`timecards_${startDate}_${endDate}.csv`, csv);
+    saveCsv(`timecards_${startDate}_${endDate}.csv`, csv);
   };
 
   const noData = filteredEntries.length === 0;

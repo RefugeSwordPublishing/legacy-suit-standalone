@@ -5,6 +5,8 @@ import { useCurrentUser } from '@/lib/UserContext';
 import { useWorkweekStart } from '@/lib/useWorkweekStart';
 import { format, startOfWeek, endOfWeek, parseISO, addDays } from 'date-fns';
 import { findOverlap } from '@/lib/timeEntries';
+import { saveTextFile } from '@/lib/download';
+import { useToast } from '@/components/ui/use-toast';
 import { Clock, ChevronLeft, ChevronRight, Pencil, CheckCircle2, XCircle, AlertCircle, UserCheck, LogOut, Trash2, PlusCircle, Download } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import ClockedInNow from '@/components/timeclock/ClockedInNow';
@@ -40,6 +42,7 @@ function WeekNav({ weekStart, onPrev, onNext, weekStartsOn }) {
 
 export default function Timecards() {
   const { currentUser } = useCurrentUser();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const isHighRole = HIGH_ROLES.includes(currentUser?.role);
   const isManager = MANAGER_ROLES.includes(currentUser?.role);
@@ -67,7 +70,7 @@ export default function Timecards() {
   // Build the Gusto hours-import CSV client-side, matching Gusto's template exactly. One row per
   // HOURLY employee (salaried excluded, as in Gusto's export); worked hours split into Regular
   // (first 40) and Overtime (over 40) per the Missouri/federal weekly rule; 4-decimal hours.
-  const handleGustoExport = () => {
+  const handleGustoExport = async () => {
     setExportingGusto(true);
     try {
       const minsByUser = {};
@@ -93,13 +96,14 @@ export default function Timecards() {
       const lines = rows.map(r => `${r.last},${r.first},,,${r.regular},${r.overtime},0,0,0,0,0,0,0,`);
       const csv = [header, ...lines].join('\n');
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `gusto_${weekStartStr}_${weekEndStr}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (!rows.length) {
+        toast({ title: 'Nothing to export', description: `No completed shifts for hourly employees from ${format(weekStart, 'MMM d')} to ${format(weekEnd, 'MMM d')}. Use the arrows to pick another week.` });
+        return;
+      }
+      // No BOM here: Gusto's importer expects its template byte for byte.
+      await saveTextFile(`gusto_${weekStartStr}_${weekEndStr}.csv`, csv);
+    } catch (e) {
+      toast({ title: 'Could not export', description: e?.message || String(e), variant: 'destructive' });
     } finally {
       setExportingGusto(false);
     }
