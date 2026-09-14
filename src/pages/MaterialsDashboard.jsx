@@ -50,8 +50,10 @@ function MaterialRow({ mat, updateStatus, onEdit, onDelete }) {
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Badge variant="outline" className={`${pc.className} text-xs`}>{pc.label}</Badge>
-        <Badge variant="outline" className={`${sc.className} text-xs`}>{sc.label}</Badge>
+        {/* Fixed widths: ticking the box swaps "Needed" for "In Cart", and a badge that changed
+            width would re-wrap the row and shift everything below it. */}
+        <Badge variant="outline" className={`${pc.className} text-xs w-16 justify-center`}>{pc.label}</Badge>
+        <Badge variant="outline" className={`${sc.className} text-xs w-[4.5rem] justify-center`}>{sc.label}</Badge>
         <button onClick={() => onEdit(mat)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all ml-1">
           <Pencil className="w-3.5 h-3.5" />
         </button>
@@ -126,21 +128,24 @@ function ProjectMaterialsList({ projectsWithMaterials, updateStatus, markSelecte
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">{project.materials.length} items</Badge>
                   {activeItems.length > 0 && (
-                    <Badge variant="outline" className="text-xs bg-red-50 text-red-600 border-red-200">
+                    <Badge variant="outline" className="text-xs bg-red-50 text-red-600 border-red-200 tabular-nums">
                       {activeItems.length} pending
                     </Badge>
                   )}
-                  {inCartIds.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => markSelectedDelivered(inCartIds)}
-                    >
-                      <Truck className="w-3 h-3 mr-1" />
-                      Mark {inCartIds.length} Delivered
-                    </Button>
-                  )}
+                  {/* Always rendered so it keeps its space. Appearing on the first tick used to wrap
+                      the header onto a second line on phones and push the whole list down. */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={`text-xs h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 tabular-nums ${inCartIds.length ? '' : 'invisible'}`}
+                    onClick={() => markSelectedDelivered(inCartIds)}
+                    disabled={!inCartIds.length}
+                    aria-hidden={!inCartIds.length}
+                    tabIndex={inCartIds.length ? 0 : -1}
+                  >
+                    <Truck className="w-3 h-3 mr-1" />
+                    Mark {inCartIds.length || 1} Delivered
+                  </Button>
                 </div>
               </div>
             </CardHeader>
