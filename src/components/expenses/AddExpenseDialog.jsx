@@ -143,15 +143,33 @@ Return only the JSON object. No markdown, no commentary.`;
     if (!file) return;
     setUploading(true);
     try {
-      // HEIC (default on many phones) isn't supported by the vision API or browsers; convert to JPEG.
+      // HEIC/HEIF (the high-efficiency photo format on Samsung and Apple phones) is readable by
+      // neither the vision API nor browsers, so convert to JPEG first. The converter is a separate
+      // file fetched on demand, and that fetch can fail: a tab open since before a deploy asks for
+      // a file name the current build no longer has. That used to abort the upload and drop the
+      // photo. Now the original is uploaded and attached either way; only the scan is skipped.
+      let unconvertedHeic = false;
       if (file.type === 'image/heic' || file.type === 'image/heif' || /\.hei[cf]$/i.test(file.name || '')) {
-        const heic2any = (await import('heic2any')).default;
-        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
-        const out = Array.isArray(converted) ? converted[0] : converted;
-        file = new File([out], (file.name || 'receipt').replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' });
+        try {
+          const heic2any = (await import('heic2any')).default;
+          const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+          const out = Array.isArray(converted) ? converted[0] : converted;
+          file = new File([out], (file.name || 'receipt').replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' });
+        } catch (err) {
+          unconvertedHeic = true;
+          logError('heic_convert', err, { file_name: file?.name, file_type: file?.type });
+        }
       }
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(f => ({ ...f, receipt_image: file_url }));
+      if (unconvertedHeic) {
+        toast({
+          title: 'Receipt attached, but not scanned',
+          description: "This photo is in your phone's high-efficiency (HEIC) format and could not be converted here. Fill in the details below, or close and reopen GuildWright and attach it again.",
+          variant: 'destructive',
+        });
+        return;
+      }
       setExtracting(true);
       const result = await extractFromFile(file_url);
       const extracted = (typeof result === 'string' ? JSON.parse(result) : result) || {};
