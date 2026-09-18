@@ -1,11 +1,17 @@
-// Captures Play Store phone screenshots from the live app, signed in as the seeded demo tenant.
+// Captures store screenshots from the live app, signed in as the seeded demo tenant.
 //
-// Uses the installed Chrome through puppeteer-core, so nothing large is downloaded. Shots are
-// 1080x1920, which is a true 9:16 and inside Play's 320 to 3840 per side limit. Never point this
-// at a real tenant: store listings are public and permanent.
+// Uses the installed Chrome through puppeteer-core, so nothing large is downloaded. Never point
+// this at a real tenant: store listings are public and permanent.
+//
+// Device presets (--device), each a real phone's CSS size at a 3x scale factor:
+//   play   360x640 -> 1080x1920, a true 9:16 inside Play's limits (default)
+//   ios67  430x932 -> 1290x2796, the App Store's 6.7 inch size
+//   ios65  428x926 -> 1284x2778, the App Store's 6.5 inch size
+//   ios    both iOS sizes in one run, into <out>/6.7 and <out>/6.5
 //
 // Usage:
 //   node scripts/store-screenshots.mjs --password "<demo account password>"
+//   node scripts/store-screenshots.mjs --password "..." --device ios
 //   node scripts/store-screenshots.mjs --password "..." --headful   (watch it work)
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'fs';
@@ -19,7 +25,25 @@ const BASE = arg('--base', 'https://app.guildwright.app');
 const EMAIL = arg('--email', 'playreview@guildwright.app');
 const PASSWORD = arg('--password');
 const OUT = arg('--out', 'store-screenshots');
+const DEVICE = arg('--device', 'play');
 const HEADFUL = process.argv.includes('--headful');
+
+// An iPhone user agent for the iOS sizes, so anything that sniffs the platform behaves as it will
+// in the real app. The layout itself follows the viewport width, not the agent string.
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36';
+const PRESETS = {
+  play: { width: 360, height: 640, ua: ANDROID_UA, dir: '', label: '1080x1920' },
+  ios67: { width: 430, height: 932, ua: IPHONE_UA, dir: '6.7', label: '1290x2796' },
+  ios65: { width: 428, height: 926, ua: IPHONE_UA, dir: '6.5', label: '1284x2778' },
+};
+const RUNS = DEVICE === 'ios' ? ['ios67', 'ios65'] : [DEVICE];
+for (const r of RUNS) {
+  if (!PRESETS[r]) {
+    console.error(`Unknown --device "${r}". Use play, ios67, ios65 or ios.`);
+    process.exit(1);
+  }
+}
 
 if (!PASSWORD) {
   console.error('Pass --password "<demo account password>". Not hardcoded on purpose.');
@@ -39,18 +63,20 @@ const SHOTS = [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-(async () => {
-  mkdirSync(OUT, { recursive: true });
+const capture = async (presetName) => {
+  const p = PRESETS[presetName];
+  const outDir = p.dir ? `${OUT}/${p.dir}` : OUT;
+  mkdirSync(outDir, { recursive: true });
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: !HEADFUL,
-    // 360 CSS px is a real phone width, so the app renders its mobile layout rather than the
-    // desktop sidebar. At a 3x scale factor that outputs 1080x1920, an exact 9:16 for Play.
-    defaultViewport: { width: 360, height: 640, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
-    args: ['--window-size=360,640', '--hide-scrollbars'],
+    // A real phone's CSS width, so the app renders its mobile layout rather than the desktop
+    // sidebar. The 3x scale factor turns that into the pixel size each store asks for.
+    defaultViewport: { width: p.width, height: p.height, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+    args: [`--window-size=${p.width},${p.height}`, '--hide-scrollbars'],
   });
   const page = await browser.newPage();
-  await page.setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36');
+  await page.setUserAgent(p.ua);
 
   console.log('signing in...');
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle2', timeout: 60000 });
@@ -73,12 +99,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const shot of SHOTS) {
     await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
     await sleep(shot.wait);
-    const file = `${OUT}/${shot.name}.png`;
+    const file = `${outDir}/${shot.name}.png`;
     await page.screenshot({ path: file, type: 'png' });
     console.log('  captured', file);
   }
 
   await browser.close();
-  console.log(`\nDone. ${SHOTS.length} shots in ${OUT}/ at 1080x1920.`);
-  console.log('Play needs at least 2. Pick the ones that show real content and skip any that look empty.');
+  console.log(`Done. ${SHOTS.length} shots in ${outDir}/ at ${p.label}.`);
+};
+
+(async () => {
+  for (const r of RUNS) await capture(r);
+  console.log('\nPlay needs at least 2 shots, the App Store at least 3 per size.');
+  console.log('Pick the ones that show real content and skip any that look empty.');
 })().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });
