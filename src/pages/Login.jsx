@@ -26,7 +26,7 @@ export default function Login() {
       <div className="w-full max-w-sm rounded-2xl p-8 shadow-xl" style={{ backgroundColor: '#F5F2EA' }}>
         <div className="text-center mb-6">
           <img src="/guildwright-iconHD.png" alt="GuildWright" width={52} height={52} className="mx-auto mb-4 rounded-lg" />
-          <h1 className="text-2xl font-bold" style={{ color: '#262525' }}>GuildWright</h1>
+          <h1 className="text-2xl font-bold" style={{ color: '#262525' }}>GuildWright<sup className="text-[0.5em] align-super font-semibold">™</sup></h1>
           <p className="text-sm mt-1" style={{ color: '#6B4B32' }}>One System. Every Job.</p>
         </div>
 

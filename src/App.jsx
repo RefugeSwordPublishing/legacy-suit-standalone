@@ -107,7 +107,7 @@ const AuthenticatedApp = () => {
       <div className="fixed inset-0 bg-primary flex flex-col items-center justify-center gap-6">
         <img src="/guildwright-iconHD.png" alt="GuildWright" width={72} height={72} className="mx-auto rounded-xl" />
         <div className="text-center">
-          <h1 style={{ fontFamily: 'var(--font-butler)' }} className="text-3xl font-bold text-primary-foreground tracking-wide">GuildWright</h1>
+          <h1 style={{ fontFamily: 'var(--font-butler)' }} className="text-3xl font-bold text-primary-foreground tracking-wide">GuildWright<sup className="text-[0.5em] align-super font-semibold">™</sup></h1>
           <p className="text-primary-foreground/60 text-sm mt-1" style={{ fontFamily: 'var(--font-highway)' }}>One System. Every Job.</p>
         </div>
         <div className="w-8 h-8 border-4 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>

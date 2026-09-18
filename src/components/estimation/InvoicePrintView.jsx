@@ -237,7 +237,7 @@ export default function InvoicePrintView({ invoice, onBack }) {
               {b.established_label ? <>{' '}·{' '}{b.established_label}</> : null}
             </div>
             <div style={{ fontSize: 8.5, letterSpacing: '0.1em', color: C.rule, marginTop: 6 }}>
-              Presented with GuildWright
+              Presented with GuildWright™
             </div>
           </div>
 

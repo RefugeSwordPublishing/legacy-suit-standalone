@@ -289,6 +289,11 @@ export default function SettingsHub() {
         </div>
       </div>
 
+      {/* Ownership notice: who the mark belongs to, in the one place people look for it. */}
+      <p className="text-xs text-muted-foreground text-center pt-2">
+        GuildWright<sup className="text-[0.7em] align-super">™</sup> is a trademark of Refuge &amp; Sword Publishing LLC.
+      </p>
+
       <ReportIssueDialog open={showReportIssue} onOpenChange={setShowReportIssue} />
       <TimeOffRequestDialog open={showTimeOff} onOpenChange={setShowTimeOff} />
     </div>

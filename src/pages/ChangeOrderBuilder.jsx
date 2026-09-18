@@ -272,7 +272,7 @@ export default function ChangeOrderBuilder() {
             <a href="${link}" style="background:#262525;color:#ffffff;padding:13px 26px;text-decoration:none;border-radius:4px;letter-spacing:0.04em;display:inline-block;">Review &amp; Sign Change Order</a>
           </p>
           <p style="font-size:13px;color:#666;">Or open this link:<br><a href="${link}" style="color:#B58A45;">${link}</a></p>
-          <p style="font-size:11px;color:#999;margin-top:36px;">Presented with GuildWright</p>
+          <p style="font-size:11px;color:#999;margin-top:36px;">Presented with GuildWright&trade;</p>
         </div>`;
       const res = await base44.functions.invoke('sendEmail', {
         to: resolvedEmail, subject: `Change order from ${companyName}`, html, from_name: companyName, reply_to: replyTo,

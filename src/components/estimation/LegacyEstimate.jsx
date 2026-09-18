@@ -451,7 +451,7 @@ export default function LegacyEstimate({ estimate, onClose }) {
         <div style={{ textAlign: 'center', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.oliveLight, lineHeight: 2, borderTop: `1px solid ${C.rule}`, paddingTop: 20 }}>
           {b.company_name} &nbsp;·&nbsp; {b.website}
           <div style={{ fontSize: 8.5, letterSpacing: '0.1em', color: C.rule, marginTop: 6, textTransform: 'none' }}>
-            Presented with GuildWright
+            Presented with GuildWright™
           </div>
         </div>
 

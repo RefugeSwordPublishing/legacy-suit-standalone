@@ -187,7 +187,7 @@ export default function AppLayout() {
         <div className="px-5 py-6 border-b border-sidebar-border flex items-center gap-3">
           <img src="/guildwright-iconHD.png" alt="GuildWright" width={44} height={44} className="shrink-0 rounded-lg" />
           <div>
-            <h1 style={{ fontFamily: 'var(--font-butler)', fontSize: 17, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.2 }} className="text-sidebar-foreground">GuildWright</h1>
+            <h1 style={{ fontFamily: 'var(--font-butler)', fontSize: 17, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.2 }} className="text-sidebar-foreground">GuildWright<sup className="text-[0.5em] align-super font-semibold">™</sup></h1>
             <p className="text-xs text-sidebar-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-highway)' }}>One System. Every Job.</p>
           </div>
         </div>
