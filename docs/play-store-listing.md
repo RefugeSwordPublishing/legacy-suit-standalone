@@ -9,7 +9,9 @@ GuildWright
 ```
 
 Keep it the bare mark. Appending keywords ("GuildWright: Contractor Software") would weaken the
-trademark application, which claims GUILDWRIGHT on its own.
+trademark claim on GUILDWRIGHT standing alone. Leave the TM symbol out of the app name as well:
+Google's metadata rules are strict about symbols in titles, and notice is carried by the first
+mention in the full description instead.
 
 ## Short description (80 max)
 
@@ -23,7 +25,7 @@ full description.
 ## Full description (4000 max)
 
 ```
-GuildWright runs the whole job, from the estimate you send to the invoice that gets paid.
+GuildWright™ runs the whole job, from the estimate you send to the invoice that gets paid.
 
 Built for remodelers and small general contractors who are tired of running a business across a
 spreadsheet, a text thread and a shoebox of receipts.
@@ -59,6 +61,8 @@ GuildWright is priced per company, not per seat, so put your whole crew on it. E
 with a free trial and no credit card.
 
 Start a free trial in the app, or at guildwright.app. Plans and billing are managed on the web.
+
+GuildWright is a trademark of Refuge & Sword Publishing LLC.
 ```
 
 ## Categorisation and contact
