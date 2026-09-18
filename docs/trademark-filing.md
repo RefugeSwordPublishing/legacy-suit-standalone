@@ -102,3 +102,41 @@ by post demanding a wire.
 
 Use TM next to the name now. ® only after registration is granted, which typically takes eight to
 fourteen months.
+
+---
+
+## Filed
+
+**Application filed 2026-09-18. Serial number 50115785.**
+
+| Field | As filed |
+|---|---|
+| Register | Principal |
+| Owner | Refuge & Sword Publishing LLC, Missouri LLC (charter LC014744573, formed 2026-06-03) |
+| Address | 8394 E Farm Road 112, Strafford, MO 65757 (mailing and domicile) |
+| Email | dustin@refugeandsword.com, courtesy copy support@guildwright.app |
+| Mark | GUILDWRIGHT, standard characters |
+| Class | 042, "Software as a service (SAAS) services featuring software for project management and scheduling" (ID Manual entry, no free-form fee) |
+| Basis | Section 1(a), use in commerce |
+| First use | 2026-08-07, anywhere and in commerce |
+| Specimen | `docs/trademark/specimen-pricing.jpg`, screenshot of guildwright.app/pricing accessed 2026-09-18 |
+| Fee paid | $350 |
+
+Status: https://tsdr.uspto.gov/statusview/sn50115785
+
+### What happens next
+
+An examining attorney is assigned about three to four months after filing. Watch
+dustin@refugeandsword.com and support@guildwright.app: an office action carries a hard response
+deadline, and missing it abandons the application. Check TSDR every couple of months regardless,
+because a notice that lands in spam still starts the clock.
+
+If it clears examination it publishes for opposition (30 days for anyone to object), then registers,
+typically eight to fourteen months from filing.
+
+### Still to do later
+
+- **Class 9** (downloadable software) as a separate application now that the Android app is on
+  Google Play. That is a second $350 and needs its own specimen: the Play listing showing the mark.
+- **Design mark** for the logo, only if the logo itself is worth protecting separately.
+- Use TM beside the name now. ® only after registration is granted.
