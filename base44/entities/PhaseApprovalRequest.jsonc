@@ -1,0 +1,49 @@
+{
+  "name": "PhaseApprovalRequest",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "current_phase": {
+      "type": "string",
+      "enum": [
+        "phase_1",
+        "phase_2",
+        "phase_3",
+        "phase_4",
+        "phase_5",
+        "phase_6"
+      ]
+    },
+    "requested_by_id": {
+      "type": "string"
+    },
+    "requested_by_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined"
+      ],
+      "default": "pending"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "current_phase",
+    "requested_by_id"
+  ]
+}

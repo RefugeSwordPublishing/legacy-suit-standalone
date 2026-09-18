@@ -1,0 +1,46 @@
+{
+  "name": "ClientRequest",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "photo_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "accepted",
+        "declined"
+      ],
+      "default": "open"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "submitted_by": {
+      "type": "string"
+    },
+    "decline_reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "title"
+  ]
+}

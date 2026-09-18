@@ -1,0 +1,79 @@
+{
+  "name": "TimeEntry",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "user_role": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "clock_in": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "clock_out": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "break_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "break_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_minutes": {
+      "type": "number"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "clock_in_lat": {
+      "type": "number"
+    },
+    "clock_in_lng": {
+      "type": "number"
+    },
+    "location_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "location_overridden": {
+      "type": "boolean",
+      "default": false
+    },
+    "manually_clocked_by": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "clocked_in",
+        "on_break",
+        "clocked_out"
+      ],
+      "default": "clocked_in"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "project_id",
+    "clock_in",
+    "date"
+  ]
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GuildWright</string>
+    <string name="title_activity_main">GuildWright</string>
+    <string name="package_name">com.guildwright.app</string>
+    <string name="custom_url_scheme">com.guildwright.app</string>
+</resources>

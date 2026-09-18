@@ -1,0 +1,110 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the associated project"
+    },
+    "title": {
+      "type": "string",
+      "description": "Task description"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "assignees": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed"
+      ],
+      "default": "pending"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "photo_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "subtasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          },
+          "assigned_to": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "phase_1",
+        "phase_2",
+        "phase_3",
+        "phase_4",
+        "phase_5",
+        "phase_6"
+      ]
+    },
+    "is_sub_contractor_task": {
+      "type": "boolean",
+      "default": false
+    },
+    "sub_contractor_id": {
+      "type": "string"
+    },
+    "sub_contractor_name": {
+      "type": "string"
+    },
+    "bid_request_id": {
+      "type": "string"
+    },
+    "eta_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "eta_end": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

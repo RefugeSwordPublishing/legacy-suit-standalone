@@ -1,0 +1,53 @@
+{
+  "name": "DailyGoal",
+  "type": "object",
+  "properties": {
+    "schedule_entry_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "task_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "task_titles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "set_by": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "user_id",
+    "project_id",
+    "scheduled_date"
+  ]
+}

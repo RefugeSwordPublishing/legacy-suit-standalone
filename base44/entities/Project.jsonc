@@ -1,0 +1,84 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project/job site name"
+    },
+    "address": {
+      "type": "string",
+      "description": "Site address"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Client or property owner name"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "active",
+        "on_hold",
+        "completed"
+      ],
+      "default": "planning"
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "phase_1",
+        "phase_2",
+        "phase_3",
+        "phase_4",
+        "phase_5",
+        "phase_6"
+      ]
+    },
+    "phase_since": {
+      "type": "string",
+      "format": "date"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "target_end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "duration_value": {
+      "type": "number"
+    },
+    "duration_unit": {
+      "type": "string",
+      "enum": [
+        "days",
+        "weeks"
+      ],
+      "default": "days"
+    },
+    "budget": {
+      "type": "number"
+    },
+    "budget_hours": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "site_manager_id": {
+      "type": "string"
+    },
+    "color": {
+      "type": "string",
+      "default": "#3B82F6"
+    },
+    "quickbooks_project_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

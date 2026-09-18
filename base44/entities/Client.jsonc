@@ -1,0 +1,51 @@
+{
+  "name": "Client",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "billing_address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "zip": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    },
+    "quickbooks_client_id": {
+      "type": "string"
+    },
+    "quickbooks_customer_id": {
+      "type": "string",
+      "description": "QBO Customer Id resolved via findOrCreateCustomer"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "ChatMessage",
+  "type": "object",
+  "properties": {
+    "channel": {
+      "type": "string"
+    },
+    "sender_id": {
+      "type": "string"
+    },
+    "sender_name": {
+      "type": "string"
+    },
+    "sender_role": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "channel",
+    "message",
+    "sender_id",
+    "sender_name"
+  ]
+}

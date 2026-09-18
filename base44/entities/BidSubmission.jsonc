@@ -1,0 +1,55 @@
+{
+  "name": "BidSubmission",
+  "type": "object",
+  "properties": {
+    "bid_request_id": {
+      "type": "string"
+    },
+    "sub_contractor_id": {
+      "type": "string"
+    },
+    "sub_contractor_name": {
+      "type": "string"
+    },
+    "sub_contractor_email": {
+      "type": "string"
+    },
+    "bid_amount": {
+      "type": "number"
+    },
+    "estimated_start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "estimated_end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "submitted",
+        "approved",
+        "completed",
+        "paid",
+        "declined"
+      ],
+      "default": "submitted"
+    },
+    "work_completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "paid_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "bid_request_id",
+    "sub_contractor_id"
+  ]
+}
